@@ -1,54 +1,76 @@
 import { useState } from "react"
-import { supabase } from "./supabase"
+import { supabase } from "../supabase"
+import { useNavigate } from "react-router-dom"
 
-export default function Register(){
+function Registro() {
 
-const [form,setForm]=useState({
-telefono:"",
-player_id:"",
-nombre:"",
-anio:""
-})
+  const navigate = useNavigate()
 
-const registrar = async () => {
+  const [telefono,setTelefono] = useState("")
+  const [playerId,setPlayerId] = useState("")
+  const [nombre,setNombre] = useState("")
+  const [anio,setAnio] = useState("")
 
-await supabase
-.from("jugadores")
-.insert([{
-telefono:form.telefono,
-player_id:form.player_id,
-nombre:form.nombre,
-anio_nacimiento:form.anio
-}])
+  async function registrar(e){
+    e.preventDefault()
 
-alert("Registrado")
+    const { error } = await supabase
+      .from("jugadores")
+      .insert([
+        {
+          telefono: telefono,
+          player_id: playerId,
+          nombre: nombre,
+          anio_nacimiento: anio
+        }
+      ])
 
+    if(error){
+      alert("Error registrando")
+      console.log(error)
+    } else {
+
+      alert("Jugador registrado")
+
+      navigate(`/inscribir?telefono=${telefono}`)
+    }
+  }
+
+  return (
+    <div className="container">
+
+      <h2>Registro de jugador</h2>
+
+      <form onSubmit={registrar}>
+
+        <input placeholder="Teléfono"
+        value={telefono}
+        onChange={(e)=>setTelefono(e.target.value)}
+        />
+
+        <input placeholder="Player ID"
+        value={playerId}
+        onChange={(e)=>setPlayerId(e.target.value)}
+        />
+
+        <input placeholder="Nombre completo"
+        value={nombre}
+        onChange={(e)=>setNombre(e.target.value)}
+        />
+
+        <input placeholder="Año nacimiento"
+        value={anio}
+        onChange={(e)=>setAnio(e.target.value)}
+        />
+
+        <button type="submit">
+          Registrar
+        </button>
+
+      </form>
+
+    </div>
+  )
 }
 
-return(
-
-<div>
-
-<h2>Registro Jugador</h2>
-
-<input placeholder="Telefono"
-onChange={e=>setForm({...form,telefono:e.target.value})}/>
-
-<input placeholder="Player ID"
-onChange={e=>setForm({...form,player_id:e.target.value})}/>
-
-<input placeholder="Nombre"
-onChange={e=>setForm({...form,nombre:e.target.value})}/>
-
-<input placeholder="Año nacimiento"
-onChange={e=>setForm({...form,anio:e.target.value})}/>
-
-<button onClick={registrar}>
-Registrar
-</button>
-
-</div>
-
-)
-
-}
+export default Registro

@@ -1,55 +1,76 @@
 import { useState } from "react"
-import { supabase } from "./supabase"
+import { supabase } from "../supabase"
 
-const TORNEO_ID="ID_DEL_TORNEO"
+function Inscribir(){
 
-export default function Inscribir(){
+  const [telefono,setTelefono] = useState("")
+  const [jugador,setJugador] = useState(null)
 
-const [telefono,setTelefono]=useState("")
+  async function buscar(){
 
-const inscribir = async () => {
+    const { data } = await supabase
+      .from("jugadores")
+      .select("*")
+      .eq("telefono",telefono)
+      .single()
 
-const {data} = await supabase
-.from("jugadores")
-.select("*")
-.eq("telefono",telefono)
-.single()
+    setJugador(data)
+  }
 
-if(!data){
+  async function inscribir(){
 
-alert("Jugador no registrado")
-return
+    const { error } = await supabase
+      .from("inscripciones")
+      .insert([
+        {
+          jugador_id: jugador.id,
+          fecha: new Date(),
+          pagado: false
+        }
+      ])
 
+    if(error){
+      alert("Error")
+    } else {
+      alert("Jugador inscrito")
+    }
+
+  }
+
+  return(
+
+    <div className="container">
+
+      <h2>Inscribirse</h2>
+
+      <input
+      placeholder="Teléfono"
+      value={telefono}
+      onChange={(e)=>setTelefono(e.target.value)}
+      />
+
+      <button onClick={buscar}>
+      Buscar jugador
+      </button>
+
+      {jugador && (
+
+        <div className="card">
+
+          <h3>{jugador.nombre}</h3>
+          <p>Player ID: {jugador.player_id}</p>
+
+          <button onClick={inscribir}>
+          Confirmar inscripción
+          </button>
+
+        </div>
+
+      )}
+
+    </div>
+
+  )
 }
 
-await supabase
-.from("inscripciones")
-.insert([{
-jugador_id:data.id,
-torneo_id:TORNEO_ID
-}])
-
-alert("Inscrito")
-
-}
-
-return(
-
-<div>
-
-<h2>Inscripción torneo</h2>
-
-<input
-placeholder="Telefono"
-onChange={e=>setTelefono(e.target.value)}
-/>
-
-<button onClick={inscribir}>
-Inscribirme
-</button>
-
-</div>
-
-)
-
-}
+export default Inscribir
