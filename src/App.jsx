@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Link } from "react-router-dom"
-import Registro from "./pages/Registro"
-import Inscribir from "./pages/Inscribir"
-import Admin from "./pages/Admin"
+import Registro from "./Register"
+import Inscribir from "./Inscribir"
+import Admin from "./Admin"
 
 function Home() {
   return (
