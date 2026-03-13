@@ -8,6 +8,7 @@ const [nombre,setNombre]=useState("")
 const [anio,setAnio]=useState("")
 const [telefono,setTelefono]=useState("")
 const [mensaje,setMensaje]=useState("")
+const [playerInscrito,setPlayerInscrito]=useState(null)
 
 function validar(){
 
@@ -49,12 +50,13 @@ const { data:existe } = await supabase
 if(existe && existe.length > 0){
 
 setMensaje("Jugador ya registrado")
-
 return
 
 }
 
-const {error}=await supabase
+// registrar jugador
+
+const { data:jugador, error } = await supabase
 .from("jugadores")
 .insert({
 
@@ -64,21 +66,51 @@ anio_nacimiento:anio,
 telefono
 
 })
+.select()
+.single()
 
 if(error){
 
 setMensaje("Error registrando jugador")
+return
+
+}
+
+// revisar estado del torneo
+
+const {data:estado} = await supabase
+.from("torneo_estado")
+.select("*")
+.single()
+
+const late = !estado.registro_abierto
+
+// inscribir automáticamente
+
+const {error:inscripcionError} = await supabase
+.from("inscripciones")
+.insert({
+
+jugador_id: jugador.id,
+late: late
+
+})
+
+if(inscripcionError){
+
+setMensaje("Jugador registrado pero no se pudo inscribir")
 
 }else{
 
-setMensaje("Jugador registrado correctamente")
+setMensaje("Jugador inscrito correctamente")
+setPlayerInscrito(playerId)
+
+}
 
 setPlayerId("")
 setNombre("")
 setAnio("")
 setTelefono("")
-
-}
 
 }
 
@@ -128,8 +160,16 @@ Registrar jugador
 
 {mensaje && (
 
-<div className="mt-4 bg-yellow-100 text-yellow-700 p-3 rounded text-center">
-{mensaje}
+<div className="mt-4 bg-green-100 text-green-700 p-4 rounded text-center">
+
+<p className="font-bold">{mensaje}</p>
+
+{playerInscrito && (
+<p className="mt-2">
+Player ID: <span className="font-bold">{playerInscrito}</span>
+</p>
+)}
+
 </div>
 
 )}
