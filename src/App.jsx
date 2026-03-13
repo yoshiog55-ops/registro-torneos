@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Link } from "react-router-dom"
-import Registro from "./Register"
+import Registro from "./Registro"
 import Inscribir from "./Inscribir"
 import Admin from "./Admin"
 
