@@ -6,6 +6,7 @@ export default function Admin(){
 const [auth,setAuth]=useState(false)
 const [email,setEmail]=useState("")
 const [password,setPassword]=useState("")
+const [mensaje,setMensaje] = useState("")
 
 const [jugadores,setJugadores]=useState([])
 const [jugadoresDB,setJugadoresDB]=useState([])
@@ -29,6 +30,23 @@ setAuth(true)
 cargarJugadores()
 cargarEstado()
 }
+
+}
+
+async function quitarInscripcion(j){
+
+const confirmar = confirm(
+`¿Quitar a ${j.jugadores.nombre} del torneo?`
+)
+
+if(!confirmar) return
+
+await supabase
+.from("inscripciones")
+.delete()
+.eq("id", j.id)
+
+cargarJugadores()
 
 }
 
@@ -190,6 +208,12 @@ return(
 
 <div className="max-w-6xl mx-auto">
 
+{mensaje && (
+<div className="mb-4 bg-green-100 text-green-700 p-3 rounded text-center">
+{mensaje}
+</div>
+)}
+
 <div className="flex justify-between items-center mb-6">
 
 <h1 className="text-3xl font-bold">
@@ -288,6 +312,7 @@ Abrir registro
 
 </div>
 
+
 <table className="w-full bg-white shadow rounded-xl">
 
 <thead className="bg-gray-200">
@@ -299,6 +324,7 @@ Abrir registro
 <th className="p-3">Pago</th>
 <th className="p-3">Estado</th>
 <th className="p-3">Copiar</th>
+<th className="p-3">Quitar</th>
 </tr>
 
 </thead>
@@ -343,10 +369,25 @@ j.pagado ? "bg-green-600" : "bg-red-600"
 <td className="p-3">
 
 <button
-onClick={()=>navigator.clipboard.writeText(j.jugadores.player_id)}
-className="bg-[#00B7C3] text-white px-3 py-1 rounded"
+  onClick={() => {
+    navigator.clipboard.writeText(j.jugadores.player_id)
+    setMensaje("Player ID copiado con éxito")
+    setTimeout(() => setMensaje(""), 2000)
+  }}
+  className="bg-[#00B7C3] text-white px-3 py-1 rounded"
 >
-Copiar
+  Copiar
+</button>
+
+</td>
+
+<td className="p-3">
+
+<button
+onClick={()=>quitarInscripcion(j)}
+className="bg-red-600 text-white px-3 py-1 rounded"
+>
+Quitar
 </button>
 
 </td>
