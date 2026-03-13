@@ -1,41 +1,37 @@
-import { BrowserRouter, Routes, Route, Link } from "react-router-dom"
-import Registro from "./Registro"
-import Inscribir from "./Inscribir"
-import Admin from "./Admin"
+import { BrowserRouter, Routes, Route } from "react-router-dom"
 
-function Home() {
-  return (
-    <div className="container">
-      <h1>Registro Torneo Pokémon</h1>
+import Navbar from "./components/Navbar"
 
-      <div className="menu">
-        <Link to="/registro">
-          <button>Registrar jugador</button>
-        </Link>
+import Home from "./pages/Home"
+import Registro from "./pages/Registro"
+import Admin from "./pages/Admin"
 
-        <Link to="/inscribir">
-          <button>Inscribirse al torneo</button>
-        </Link>
+function App(){
 
-        <Link to="/admin">
-          <button>Administrador</button>
-        </Link>
-      </div>
-    </div>
-  )
-}
+return(
 
-function App() {
-  return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/registro" element={<Registro />} />
-        <Route path="/inscribir" element={<Inscribir />} />
-        <Route path="/admin" element={<Admin />} />
-      </Routes>
-    </BrowserRouter>
-  )
+<BrowserRouter>
+
+<Navbar/>
+
+<div className="p-8 bg-gray-100 min-h-screen">
+
+<Routes>
+
+<Route path="/" element={<Home />} />
+
+<Route path="/registro" element={<Registro />} />
+
+<Route path="/admin" element={<Admin />} />
+
+</Routes>
+
+</div>
+
+</BrowserRouter>
+
+)
+
 }
 
 export default App
