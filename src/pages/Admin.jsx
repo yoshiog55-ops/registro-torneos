@@ -19,6 +19,25 @@ useEffect(()=>{
 
 verificarSesion()
 
+const channel = supabase
+.channel("inscripciones-realtime")
+.on(
+"postgres_changes",
+{
+event: "*",
+schema: "public",
+table: "inscripciones"
+},
+() => {
+cargarJugadores()
+}
+)
+.subscribe()
+
+return () => {
+supabase.removeChannel(channel)
+}
+
 },[])
 
 async function verificarSesion(){

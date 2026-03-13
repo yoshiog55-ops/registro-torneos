@@ -16,7 +16,7 @@ className="h-10"
 />
 
 <h1 className="font-bold">
-Aldebaran Torneos
+ Torneos
 </h1>
 
 </div>
