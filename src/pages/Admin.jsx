@@ -1,13 +1,18 @@
-import { useState, useEffect } from "react"
+import { useState,useEffect } from "react"
 import { supabase } from "../supabase"
 
 export default function Admin(){
 
-const [email,setEmail] = useState("")
-const [password,setPassword] = useState("")
-const [auth,setAuth] = useState(false)
-const [mensaje,setMensaje] = useState("")
-const [jugadores,setJugadores] = useState([])
+const [auth,setAuth]=useState(false)
+const [email,setEmail]=useState("")
+const [password,setPassword]=useState("")
+
+const [jugadores,setJugadores]=useState([])
+const [jugadoresDB,setJugadoresDB]=useState([])
+
+const [vista,setVista]=useState("torneo")
+const [busqueda,setBusqueda]=useState("")
+const [estado,setEstado]=useState(null)
 
 useEffect(()=>{
 
@@ -17,34 +22,27 @@ verificarSesion()
 
 async function verificarSesion(){
 
-const {data} = await supabase.auth.getSession()
+const {data}=await supabase.auth.getSession()
 
 if(data.session){
 setAuth(true)
 cargarJugadores()
+cargarEstado()
 }
 
 }
 
 async function login(){
 
-const {error} = await supabase.auth.signInWithPassword({
-
+const {error}=await supabase.auth.signInWithPassword({
 email,
 password
-
 })
 
-if(error){
-
-setMensaje("Credenciales incorrectas")
-
-}else{
-
+if(!error){
 setAuth(true)
-setMensaje("Bienvenido administrador")
 cargarJugadores()
-
+cargarEstado()
 }
 
 }
@@ -52,21 +50,53 @@ cargarJugadores()
 async function logout(){
 
 await supabase.auth.signOut()
-
 setAuth(false)
-setJugadores([])
+
+}
+
+async function cargarEstado(){
+
+const {data}=await supabase
+.from("torneo_estado")
+.select("*")
+.single()
+
+setEstado(data)
+
+}
+
+async function cerrarRegistro(){
+
+await supabase
+.from("torneo_estado")
+.update({registro_abierto:false})
+.eq("id",1)
+
+cargarEstado()
+
+}
+
+async function abrirRegistro(){
+
+await supabase
+.from("torneo_estado")
+.update({registro_abierto:true})
+.eq("id",1)
+
+cargarEstado()
 
 }
 
 async function cargarJugadores(){
 
-const today = new Date().toISOString().split("T")[0]
+const today=new Date().toISOString().split("T")[0]
 
-const {data} = await supabase
+const {data}=await supabase
 .from("inscripciones")
 .select(`
 id,
 pagado,
+late,
 jugadores (
 player_id,
 nombre,
@@ -87,6 +117,36 @@ await supabase
 .eq("id",j.id)
 
 cargarJugadores()
+
+}
+
+async function cargarJugadoresDB(){
+
+const {data}=await supabase
+.from("jugadores")
+.select("*")
+.order("nombre")
+
+setJugadoresDB(data)
+
+}
+
+async function editarJugador(j){
+
+const nuevoNombre=prompt("Nombre",j.nombre)
+const nuevoAnio=prompt("Año nacimiento",j.anio_nacimiento)
+const nuevoTelefono=prompt("Telefono",j.telefono)
+
+await supabase
+.from("jugadores")
+.update({
+nombre:nuevoNombre,
+anio_nacimiento:nuevoAnio,
+telefono:nuevoTelefono
+})
+.eq("id",j.id)
+
+cargarJugadoresDB()
 
 }
 
@@ -120,12 +180,6 @@ className="bg-[#00B7C3] text-white w-full p-3 rounded"
 Entrar
 </button>
 
-{mensaje && (
-<div className="mt-4 bg-red-100 text-red-700 p-3 rounded text-center">
-{mensaje}
-</div>
-)}
-
 </div>
 
 )
@@ -151,6 +205,89 @@ Cerrar sesión
 
 </div>
 
+<div className="flex gap-4 mb-6">
+
+<button
+onClick={()=>setVista("torneo")}
+className="bg-[#00B7C3] text-white px-4 py-2 rounded"
+>
+Torneo
+</button>
+
+<button
+onClick={()=>{
+setVista("jugadores")
+cargarJugadoresDB()
+}}
+className="bg-gray-700 text-white px-4 py-2 rounded"
+>
+Jugadores
+</button>
+
+</div>
+
+{vista==="torneo" && (
+
+<div>
+
+<div className="mb-6">
+
+<p className="font-bold text-lg">
+
+Estado torneo:
+
+{estado?.registro_abierto
+? <span className="text-green-600 ml-2">Registro abierto</span>
+: <span className="text-red-600 ml-2">Registro cerrado</span>
+}
+
+</p>
+
+{estado?.registro_abierto ? (
+
+<button
+onClick={cerrarRegistro}
+className="bg-red-600 text-white px-4 py-2 rounded mt-2"
+>
+Cerrar registro
+</button>
+
+) : (
+
+<button
+onClick={abrirRegistro}
+className="bg-green-600 text-white px-4 py-2 rounded mt-2"
+>
+Abrir registro
+</button>
+
+)}
+
+</div>
+
+<div className="grid grid-cols-3 gap-4 mb-6">
+
+<div className="bg-white p-6 rounded-xl shadow">
+<h3 className="text-gray-500">Inscritos</h3>
+<p className="text-3xl font-bold">{jugadores.length}</p>
+</div>
+
+<div className="bg-white p-6 rounded-xl shadow">
+<h3 className="text-gray-500">Pagados</h3>
+<p className="text-3xl font-bold">
+{jugadores.filter(j=>j.pagado).length}
+</p>
+</div>
+
+<div className="bg-white p-6 rounded-xl shadow">
+<h3 className="text-gray-500">Pendientes</h3>
+<p className="text-3xl font-bold">
+{jugadores.filter(j=>!j.pagado).length}
+</p>
+</div>
+
+</div>
+
 <table className="w-full bg-white shadow rounded-xl">
 
 <thead className="bg-gray-200">
@@ -159,7 +296,8 @@ Cerrar sesión
 <th className="p-3">Player ID</th>
 <th className="p-3">Nombre</th>
 <th className="p-3">Año</th>
-<th className="p-3">Pagó</th>
+<th className="p-3">Pago</th>
+<th className="p-3">Estado</th>
 <th className="p-3">Copiar</th>
 </tr>
 
@@ -167,28 +305,42 @@ Cerrar sesión
 
 <tbody>
 
-{jugadores.map(j => (
+{jugadores.map(j=>(
 
-<tr key={j.id} className="border-t">
+<tr
+key={j.id}
+className={j.late ? "bg-yellow-100" : ""}
+>
 
 <td className="p-3">{j.jugadores.player_id}</td>
 <td className="p-3">{j.jugadores.nombre}</td>
 <td className="p-3">{j.jugadores.anio_nacimiento}</td>
 
-<td className="p-3 text-center">
+<td className="p-3">
 
 <button
 onClick={()=>togglePago(j)}
-className={`w-full py-3 rounded-xl font-bold text-white text-lg ${
-  j.pagado ? "bg-green-600" : "bg-red-600"
+className={`w-full py-3 rounded-xl font-bold text-white ${
+j.pagado ? "bg-green-600" : "bg-red-600"
 }`}
 >
+
 {j.pagado ? "✔ Pagado" : "✖ No pagó"}
+
 </button>
 
 </td>
 
-<td className="p-3 text-center">
+<td className="p-3">
+
+{j.late
+? <span className="text-yellow-600 font-bold">Late</span>
+: <span className="text-green-600">Normal</span>
+}
+
+</td>
+
+<td className="p-3">
 
 <button
 onClick={()=>navigator.clipboard.writeText(j.jugadores.player_id)}
@@ -206,6 +358,70 @@ Copiar
 </tbody>
 
 </table>
+
+</div>
+
+)}
+
+{vista==="jugadores" && (
+
+<div>
+
+<input
+placeholder="Buscar jugador"
+className="border p-2 mb-4 rounded w-full"
+onChange={(e)=>setBusqueda(e.target.value)}
+/>
+
+<table className="w-full bg-white shadow rounded-xl">
+
+<thead className="bg-gray-200">
+
+<tr>
+<th className="p-3">Player ID</th>
+<th className="p-3">Nombre</th>
+<th className="p-3">Año</th>
+<th className="p-3">Teléfono</th>
+<th className="p-3">Editar</th>
+</tr>
+
+</thead>
+
+<tbody>
+
+{jugadoresDB
+.filter(j=>j.nombre.toLowerCase().includes(busqueda.toLowerCase()))
+.map(j=>(
+
+<tr key={j.id} className="border-t">
+
+<td className="p-3">{j.player_id}</td>
+<td className="p-3">{j.nombre}</td>
+<td className="p-3">{j.anio_nacimiento}</td>
+<td className="p-3">{j.telefono}</td>
+
+<td className="p-3">
+
+<button
+onClick={()=>editarJugador(j)}
+className="bg-blue-600 text-white px-3 py-1 rounded"
+>
+Editar
+</button>
+
+</td>
+
+</tr>
+
+))}
+
+</tbody>
+
+</table>
+
+</div>
+
+)}
 
 </div>
 

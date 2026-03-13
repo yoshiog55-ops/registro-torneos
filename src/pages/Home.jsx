@@ -4,50 +4,59 @@ import { supabase } from "../supabase"
 
 export default function Home(){
 
-const [busqueda,setBusqueda]=useState("")
-const [mensaje,setMensaje]=useState("")
-const [jugador,setJugador]=useState(null)
+const [busqueda,setBusqueda] = useState("")
+const [mensaje,setMensaje] = useState("")
+const [jugador,setJugador] = useState(null)
 
 async function buscarJugador(valor){
 
-if(!/^[0-9]+$/.test(valor)){
-setMensaje("Solo números permitidos")
-return
-}
-
-const {data,error}=await supabase
+const {data,error} = await supabase
 .from("jugadores")
 .select("*")
 .or(`telefono.eq.${valor},player_id.eq.${valor}`)
 .single()
 
 if(error){
+
 setMensaje("Jugador no encontrado")
 setJugador(null)
 return
+
 }
 
 setJugador(data)
-setMensaje("Jugador encontrado")
 
 }
 
-async function inscribir(jugador){
+async function inscribir(){
 
-const today=new Date().toISOString().split("T")[0]
+const {data:estado} = await supabase
+.from("torneo_estado")
+.select("*")
+.single()
 
-const {error}=await supabase
+const late = !estado.registro_abierto
+
+const {error} = await supabase
 .from("inscripciones")
 .insert({
-jugador_id:jugador.id
+
+jugador_id: jugador.id,
+late: late
+
 })
 
 if(error){
+
 setMensaje("Jugador ya inscrito hoy")
+
 }else{
-setMensaje("Jugador inscrito correctamente")
+
+setMensaje(late ? "Late check-in registrado" : "Jugador inscrito")
+
 setJugador(null)
 setBusqueda("")
+
 }
 
 }
@@ -56,19 +65,17 @@ function iniciarQR(){
 
 const scanner = new Html5QrcodeScanner(
 "reader",
-{ fps:10, qrbox:250 },
+{fps:10, qrbox:250},
 false
 )
 
-scanner.render(async (text)=>{
+scanner.render((text)=>{
 
 scanner.clear()
 
-setMensaje("QR detectado")
+buscarJugador(text)
 
-await buscarJugador(text)
-
-}, (error)=>{})
+})
 
 }
 
@@ -86,7 +93,9 @@ className="border p-3 w-full mb-4 rounded"
 value={busqueda}
 onChange={(e)=>setBusqueda(e.target.value.replace(/\D/g,''))}
 onKeyDown={(e)=>{
+
 if(e.key==="Enter") buscarJugador(busqueda)
+
 }}
 />
 
@@ -101,7 +110,7 @@ Buscar jugador
 onClick={iniciarQR}
 className="bg-gray-800 text-white w-full p-3 rounded mb-4"
 >
-Escanear QR jugador
+Escanear QR
 </button>
 
 <div id="reader"></div>
@@ -114,7 +123,7 @@ Escanear QR jugador
 <p>Player ID: {jugador.player_id}</p>
 
 <button
-onClick={()=>inscribir(jugador)}
+onClick={inscribir}
 className="mt-3 bg-green-600 text-white w-full p-2 rounded"
 >
 Confirmar inscripción
@@ -125,9 +134,11 @@ Confirmar inscripción
 )}
 
 {mensaje && (
+
 <div className="bg-blue-100 text-blue-700 p-3 rounded text-center">
 {mensaje}
 </div>
+
 )}
 
 </div>
