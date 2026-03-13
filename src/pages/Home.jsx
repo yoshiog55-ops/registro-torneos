@@ -10,6 +10,11 @@ const [jugador,setJugador]=useState(null)
 
 async function buscarJugador(valor){
 
+if(!/^[0-9]+$/.test(valor)){
+setMensaje("Solo números permitidos")
+return
+}
+
 const {data,error}=await supabase
 .from("jugadores")
 .select("*")
@@ -79,7 +84,7 @@ Inscripción rápida
 placeholder="Player ID o Teléfono"
 className="border p-3 w-full mb-4 rounded"
 value={busqueda}
-onChange={(e)=>setBusqueda(e.target.value)}
+onChange={(e)=>setBusqueda(e.target.value.replace(/\D/g,''))}
 onKeyDown={(e)=>{
 if(e.key==="Enter") buscarJugador(busqueda)
 }}
