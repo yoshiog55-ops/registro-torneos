@@ -1,5 +1,4 @@
 import { useState } from "react"
-import { Html5QrcodeScanner } from "html5-qrcode"
 import { supabase } from "../supabase"
 
 export default function Home(){
@@ -25,6 +24,7 @@ return
 }
 
 setJugador(data)
+setMensaje("Jugador encontrado")
 
 }
 
@@ -61,24 +61,6 @@ setBusqueda("")
 
 }
 
-function iniciarQR(){
-
-const scanner = new Html5QrcodeScanner(
-"reader",
-{fps:10, qrbox:250},
-false
-)
-
-scanner.render((text)=>{
-
-scanner.clear()
-
-buscarJugador(text)
-
-})
-
-}
-
 return(
 
 <div className="max-w-md mx-auto bg-white p-8 rounded-xl shadow">
@@ -101,19 +83,10 @@ if(e.key==="Enter") buscarJugador(busqueda)
 
 <button
 onClick={()=>buscarJugador(busqueda)}
-className="bg-[#00B7C3] text-white w-full p-3 rounded mb-3"
+className="bg-[#00B7C3] text-white w-full p-3 rounded mb-4"
 >
 Buscar jugador
 </button>
-
-<button
-onClick={iniciarQR}
-className="bg-gray-800 text-white w-full p-3 rounded mb-4"
->
-Escanear QR
-</button>
-
-<div id="reader"></div>
 
 {jugador && (
 
