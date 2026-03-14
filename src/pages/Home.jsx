@@ -65,6 +65,21 @@ return(
 
 <div className="max-w-md mx-auto bg-white p-8 rounded-xl shadow">
 
+<div className="mb-4 bg-yellow-100 text-yellow-800 p-3 rounded text-center text-sm">
+
+Si es la primera vez que te inscribes en esta página,
+accede a{" "}
+
+<Link
+to="/registro"
+className="font-bold underline text-[#0A2540]"
+>
+registro de jugadores
+</Link>
+
+</div>
+
+
 <h2 className="text-2xl font-bold mb-6 text-center">
 Inscripción rápida
 </h2>

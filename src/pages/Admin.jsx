@@ -225,7 +225,7 @@ Entrar
 
 return(
 
-<div className="max-w-6xl mx-auto">
+<div className="max-w-6xl mx-auto px-2 md:px-0">
 
 {mensaje && (
 <div className="mb-4 bg-green-100 text-green-700 p-3 rounded text-center">
@@ -233,9 +233,9 @@ return(
 </div>
 )}
 
-<div className="flex justify-between items-center mb-6">
+<div className="flex flex-wrap justify-between items-center mb-6 gap-3">
 
-<h1 className="text-3xl font-bold">
+<h1 className="text-2xl md:text-3xl font-bold">
 Panel administrador
 </h1>
 
@@ -248,7 +248,7 @@ Cerrar sesión
 
 </div>
 
-<div className="flex gap-4 mb-6">
+<div className="flex flex-wrap gap-3 mb-6">
 
 <button
 onClick={()=>setVista("torneo")}
@@ -308,7 +308,7 @@ Abrir registro
 
 </div>
 
-<div className="grid grid-cols-3 gap-4 mb-6">
+<div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
 
 <div className="bg-white p-6 rounded-xl shadow">
 <h3 className="text-gray-500">Inscritos</h3>
@@ -331,8 +331,9 @@ Abrir registro
 
 </div>
 
+<div className="overflow-x-auto">
 
-<table className="w-full bg-white shadow rounded-xl">
+<table className="min-w-[700px] bg-white shadow rounded-xl">
 
 <thead className="bg-gray-200">
 
@@ -388,14 +389,14 @@ j.pagado ? "bg-green-600" : "bg-red-600"
 <td className="p-3">
 
 <button
-  onClick={() => {
-    navigator.clipboard.writeText(j.jugadores.player_id)
-    setMensaje("Player ID copiado con éxito")
-    setTimeout(() => setMensaje(""), 2000)
-  }}
-  className="bg-[#00B7C3] text-white px-3 py-1 rounded"
+onClick={() => {
+navigator.clipboard.writeText(j.jugadores.player_id)
+setMensaje("Player ID copiado con éxito")
+setTimeout(() => setMensaje(""), 2000)
+}}
+className="bg-[#00B7C3] text-white px-3 py-1 rounded"
 >
-  Copiar
+Copiar
 </button>
 
 </td>
@@ -421,6 +422,8 @@ Quitar
 
 </div>
 
+</div>
+
 )}
 
 {vista==="jugadores" && (
@@ -433,7 +436,9 @@ className="border p-2 mb-4 rounded w-full"
 onChange={(e)=>setBusqueda(e.target.value)}
 />
 
-<table className="w-full bg-white shadow rounded-xl">
+<div className="overflow-x-auto">
+
+<table className="min-w-[700px] bg-white shadow rounded-xl">
 
 <thead className="bg-gray-200">
 
@@ -478,6 +483,8 @@ Editar
 </tbody>
 
 </table>
+
+</div>
 
 </div>
 
