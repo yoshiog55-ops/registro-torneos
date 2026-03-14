@@ -90,16 +90,18 @@ setOrdenDireccion("asc")
 
 async function quitarInscripcion(j){
 
-const confirmar = confirm(
-`¿Quitar a ${j.jugadores.nombre} del torneo?`
-)
-
+const confirmar = confirm(`¿Quitar a ${j.jugadores.nombre} del torneo?`)
 if(!confirmar) return
 
-await supabase
+const {error} = await supabase
 .from("inscripciones")
 .delete()
 .eq("id", j.id)
+
+if(error){
+setMensaje("Error al quitar jugador")
+return
+}
 
 cargarJugadores()
 
@@ -529,7 +531,10 @@ Fecha inscripción
 <td className="p-3 text-center">{j.jugadores.anio_nacimiento}</td>
 
 <td className="p-3 text-center text-xs">
-{new Date(j.created_at).toLocaleString("es-MX")}
+{new Date(j.created_at).toLocaleString("es-MX", {
+timeZone: "America/Mexico_City",
+hour12: false
+})}
 </td>
 
 <td className="p-3 text-center">

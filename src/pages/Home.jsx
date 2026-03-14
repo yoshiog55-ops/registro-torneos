@@ -85,7 +85,9 @@ const {error} = await supabase
 
 jugador_id: jugador.id,
 torneo_id: torneoSeleccionado,
-late: late
+late: late,
+fecha: new Date().toLocaleDateString("en-CA"),
+pagado: false
 
 })
 
