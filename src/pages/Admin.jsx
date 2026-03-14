@@ -1,5 +1,6 @@
 import { useState,useEffect } from "react"
 import { supabase } from "../supabase"
+import ConsultaJugadores from "../components/ConsultaJugadores"
 
 export default function Admin(){
 
@@ -338,13 +339,13 @@ Abrir registro
 <thead className="bg-gray-200">
 
 <tr>
-<th className="p-3">Player ID</th>
-<th className="p-3">Nombre</th>
-<th className="p-3">Año</th>
-<th className="p-3">Pago</th>
-<th className="p-3">Estado</th>
-<th className="p-3">Copiar</th>
-<th className="p-3">Quitar</th>
+<th className="p-3 text-center">Player ID</th>
+<th className="p-3 text-center">Nombre</th>
+<th className="p-3 text-center">Año</th>
+<th className="p-3 text-center">Pago</th>
+<th className="p-3 text-center">Estado</th>
+<th className="p-3 text-center">Copiar</th>
+<th className="p-3 text-center">Quitar</th>
 </tr>
 
 </thead>
@@ -360,15 +361,15 @@ j.late ? "bg-yellow-100" : "odd:bg-gray-50"
 }`}
 >
 
-<td className="p-3">{j.jugadores.player_id}</td>
+<td className="p-3 text-center">{j.jugadores.player_id}</td>
 
 <td className="p-3 whitespace-nowrap">
 {j.jugadores.nombre}
 </td>
 
-<td className="p-3">{j.jugadores.anio_nacimiento}</td>
+<td className="p-3 text-center">{j.jugadores.anio_nacimiento}</td>
 
-<td className="p-3">
+<td className="p-3 text-center">
 
 <button
 onClick={()=>togglePago(j)}
@@ -383,7 +384,7 @@ j.pagado ? "bg-green-600" : "bg-red-600"
 
 </td>
 
-<td className="p-3">
+<td className="p-3 text-center">
 
 {j.late
 ? <span className="text-yellow-600 font-bold">Late</span>
@@ -392,7 +393,7 @@ j.pagado ? "bg-green-600" : "bg-red-600"
 
 </td>
 
-<td className="p-3">
+<td className="p-3 text-center">
 
 <button
 onClick={() => {
@@ -407,7 +408,7 @@ Copiar
 
 </td>
 
-<td className="p-3">
+<td className="p-3 text-center">
 
 <button
 onClick={()=>quitarInscripcion(j)}
@@ -432,6 +433,11 @@ Quitar
 
 )}
 
+{vista==="jugadores" && (
+
+<ConsultaJugadores volver={()=>setVista("torneo")} />
+
+)}
 </div>
 
 )
