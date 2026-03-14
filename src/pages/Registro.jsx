@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState,useEffect } from "react"
 import { supabase } from "../supabase"
 
 export default function Registro(){
@@ -9,6 +9,31 @@ const [anio,setAnio]=useState("")
 const [telefono,setTelefono]=useState("")
 const [mensaje,setMensaje]=useState("")
 const [playerInscrito,setPlayerInscrito]=useState(null)
+const [torneos,setTorneos]=useState([])
+const [torneoSeleccionado,setTorneoSeleccionado]=useState(null)
+
+useEffect(()=>{
+
+cargarTorneos()
+
+},[])
+
+async function cargarTorneos(){
+
+const {data} = await supabase
+.from("torneos")
+.select("*")
+.eq("activo",true)
+
+if(data){
+
+setTorneos(data)
+
+if(data.length >= 1){
+setTorneoSeleccionado(data[0].id)
+}
+}
+}
 
 function validar(){
 
@@ -29,6 +54,11 @@ return false
 
 if(!/^[A-Za-zÁÉÍÓÚáéíóúÑñ ]+$/.test(nombre)){
 setMensaje("El nombre solo debe contener letras")
+return false
+}
+
+if(torneos.length > 1 && !torneoSeleccionado){
+setMensaje("Selecciona el torneo al que deseas inscribirte")
 return false
 }
 
@@ -92,6 +122,7 @@ const {error:inscripcionError} = await supabase
 .insert({
 
 jugador_id: jugador.id,
+torneo_id: torneoSeleccionado,
 late: late
 
 })
@@ -159,6 +190,49 @@ className="border p-3 w-full mb-4 rounded"
 value={telefono}
 onChange={(e)=>setTelefono(e.target.value.replace(/\D/g,''))}
 />
+
+{torneos.length > 1 && (
+
+<div className="mb-4">
+
+<p className="font-bold mb-2">
+Selecciona el torneo
+</p>
+
+<div className="grid gap-3">
+
+{torneos.map(t=>{
+
+const seleccionado = torneoSeleccionado === t.id
+
+return(
+
+<div
+key={t.id}
+onClick={()=>setTorneoSeleccionado(t.id)}
+className={`p-3 rounded-lg font-bold cursor-pointer transition text-center border
+
+${seleccionado
+? "bg-blue-600 text-white border-blue-700"
+: "bg-gray-200 text-gray-700 hover:bg-gray-300 border-gray-300"
+}
+
+`}
+>
+
+{t.nombre}
+
+</div>
+
+)
+
+})}
+
+</div>
+
+</div>
+
+)}
 
 <button
 onClick={registrar}

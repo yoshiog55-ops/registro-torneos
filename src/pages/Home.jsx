@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState,useEffect } from "react"
 import { supabase } from "../supabase"
 import { Link } from "react-router-dom"
 
@@ -7,6 +7,40 @@ export default function Home(){
 const [busqueda,setBusqueda] = useState("")
 const [mensaje,setMensaje] = useState("")
 const [jugador,setJugador] = useState(null)
+
+const [torneos,setTorneos]=useState([])
+const [torneoSeleccionado,setTorneoSeleccionado]=useState(null)
+
+useEffect(()=>{
+
+cargarTorneos()
+
+},[])
+
+async function cargarTorneos(){
+
+const {data}=await supabase
+.from("torneos")
+.select("*")
+.eq("activo",true)
+
+if(data){
+
+setTorneos(data)
+
+if(data){
+
+setTorneos(data)
+
+if(data.length >= 1){
+setTorneoSeleccionado(data[0].id)
+}
+
+}
+
+}
+
+}
 
 async function buscarJugador(valor){
 
@@ -31,6 +65,13 @@ setMensaje("Jugador encontrado")
 
 async function inscribir(){
 
+if(torneos.length>1 && !torneoSeleccionado){
+
+setMensaje("Selecciona el torneo")
+return
+
+}
+
 const {data:estado} = await supabase
 .from("torneo_estado")
 .select("*")
@@ -43,6 +84,7 @@ const {error} = await supabase
 .insert({
 
 jugador_id: jugador.id,
+torneo_id: torneoSeleccionado,
 late: late
 
 })
@@ -80,7 +122,6 @@ registro de jugadores
 
 </div>
 
-
 <h2 className="text-2xl font-bold mb-6 text-center">
 Inscripción rápida
 </h2>
@@ -113,6 +154,49 @@ Buscar jugador
 
 <p className="font-bold">{jugador.nombre}</p>
 <p>Player ID: {jugador.player_id}</p>
+
+{torneos.length > 1 && (
+
+<div className="mt-3">
+
+<p className="font-bold mb-2 text-sm">
+Selecciona el torneo
+</p>
+
+<div className="grid gap-2">
+
+{torneos.map(t=>{
+
+const seleccionado = torneoSeleccionado === t.id
+
+return(
+
+<div
+key={t.id}
+onClick={()=>setTorneoSeleccionado(t.id)}
+className={`p-3 rounded-lg font-bold cursor-pointer transition text-center border
+
+${seleccionado
+? "bg-blue-600 text-white border-blue-700"
+: "bg-gray-200 text-gray-700 hover:bg-gray-300 border-gray-300"
+}
+
+`}
+>
+
+{t.nombre}
+
+</div>
+
+)
+
+})}
+
+</div>
+
+</div>
+
+)}
 
 <button
 onClick={inscribir}

@@ -1,6 +1,7 @@
 import { useState,useEffect } from "react"
 import { supabase } from "../supabase"
 import ConsultaJugadores from "../components/ConsultaJugadores"
+import TorneosAdmin from "../components/TorneosAdmin"
 
 export default function Admin(){
 
@@ -15,10 +16,16 @@ const [jugadoresDB,setJugadoresDB]=useState([])
 const [vista,setVista]=useState("torneo")
 const [busqueda,setBusqueda]=useState("")
 const [estado,setEstado]=useState(null)
+const [torneos,setTorneos] = useState([])
+const [torneoSeleccionado,setTorneoSeleccionado] = useState(null)
+
+const [ordenCampo,setOrdenCampo]=useState("created_at")
+const [ordenDireccion,setOrdenDireccion]=useState("asc")
 
 useEffect(()=>{
 
 verificarSesion()
+cargarTorneos()
 
 const channel = supabase
 .channel("inscripciones-realtime")
@@ -41,6 +48,23 @@ supabase.removeChannel(channel)
 
 },[])
 
+async function cargarTorneos(){
+
+const {data} = await supabase
+.from("torneos")
+.select("*")
+.eq("activo",true)
+
+if(data){
+
+setTorneos(data)
+
+if(data.length >= 1){
+setTorneoSeleccionado(data[0].id)
+}
+}
+}
+
 async function verificarSesion(){
 
 const {data}=await supabase.auth.getSession()
@@ -49,6 +73,17 @@ if(data.session){
 setAuth(true)
 cargarJugadores()
 cargarEstado()
+}
+
+}
+
+function ordenarPor(campo){
+
+if(ordenCampo===campo){
+setOrdenDireccion(ordenDireccion==="asc"?"desc":"asc")
+}else{
+setOrdenCampo(campo)
+setOrdenDireccion("asc")
 }
 
 }
@@ -127,6 +162,8 @@ cargarEstado()
 
 async function cargarJugadores(){
 
+if(!torneoSeleccionado) return
+
 const today = new Date().toLocaleDateString("en-CA")
 
 const {data}=await supabase
@@ -135,6 +172,8 @@ const {data}=await supabase
 id,
 pagado,
 late,
+copiado,
+created_at,
 jugadores (
 player_id,
 nombre,
@@ -142,8 +181,9 @@ anio_nacimiento
 )
 `)
 .eq("fecha",today)
+.eq("torneo_id",torneoSeleccionado)
 
-setJugadores(data)
+setJugadores(data || [])
 
 }
 
@@ -152,6 +192,17 @@ async function togglePago(j){
 await supabase
 .from("inscripciones")
 .update({pagado:!j.pagado})
+.eq("id",j.id)
+
+cargarJugadores()
+
+}
+
+async function toggleCopiado(j){
+
+await supabase
+.from("inscripciones")
+.update({copiado:!j.copiado})
 .eq("id",j.id)
 
 cargarJugadores()
@@ -187,6 +238,56 @@ telefono:nuevoTelefono
 cargarJugadoresDB()
 
 }
+
+useEffect(()=>{
+
+if(torneoSeleccionado){
+cargarJugadores()
+}
+
+},[torneoSeleccionado])
+
+const jugadoresFiltrados = jugadores.filter(j =>
+j.jugadores.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
+j.jugadores.player_id.toLowerCase().includes(busqueda.toLowerCase())
+)
+
+const jugadoresOrdenados=[...jugadoresFiltrados].sort((a,b)=>{
+
+let aVal
+let bVal
+
+switch(ordenCampo){
+
+case "player_id":
+aVal=a.jugadores.player_id
+bVal=b.jugadores.player_id
+break
+
+case "nombre":
+aVal=a.jugadores.nombre
+bVal=b.jugadores.nombre
+break
+
+case "anio":
+aVal=a.jugadores.anio_nacimiento
+bVal=b.jugadores.anio_nacimiento
+break
+
+case "created_at":
+aVal=a.created_at
+bVal=b.created_at
+break
+
+default:
+return 0
+}
+
+if(aVal>bVal) return ordenDireccion==="asc"?1:-1
+if(aVal<bVal) return ordenDireccion==="asc"?-1:1
+return 0
+
+})
 
 if(!auth){
 
@@ -268,6 +369,13 @@ className="bg-gray-700 text-white px-4 py-2 rounded"
 Jugadores
 </button>
 
+<button
+onClick={()=>setVista("torneos")}
+className="bg-purple-700 text-white px-4 py-2 rounded"
+>
+Torneos
+</button>
+
 </div>
 
 {vista==="torneo" && (
@@ -275,6 +383,7 @@ Jugadores
 <div>
 
 <div className="mb-6">
+<div className="flex flex-wrap items-center gap-4 mb-6">
 
 <p className="font-bold text-lg">
 
@@ -291,7 +400,7 @@ Estado torneo:
 
 <button
 onClick={cerrarRegistro}
-className="bg-red-600 text-white px-4 py-2 rounded mt-2"
+className="bg-red-600 text-white px-4 py-2 rounded"
 >
 Cerrar registro
 </button>
@@ -300,32 +409,69 @@ Cerrar registro
 
 <button
 onClick={abrirRegistro}
-className="bg-green-600 text-white px-4 py-2 rounded mt-2"
+className="bg-green-600 text-white px-4 py-2 rounded"
 >
 Abrir registro
 </button>
 
 )}
 
+<div className="flex items-center gap-2">
+
+<label className="font-bold">
+Torneo:
+</label>
+
+<select
+className="border p-2 rounded"
+value={torneoSeleccionado || ""}
+onChange={(e)=>setTorneoSeleccionado(e.target.value)}
+>
+
+{torneos.map(t=>(
+<option key={t.id} value={t.id}>
+{t.nombre}
+</option>
+))}
+
+</select>
+
 </div>
+
+<button
+onClick={cargarJugadores}
+className="bg-gray-700 text-white px-4 py-2 rounded"
+>
+Recargar
+</button>
+
+</div>
+</div>
+
+<input
+placeholder="Buscar jugador..."
+className="border p-3 rounded w-full mb-4"
+value={busqueda}
+onChange={(e)=>setBusqueda(e.target.value)}
+/>
 
 <div className="grid grid-cols-3 gap-3 mb-6">
 
-<div className="bg-white p-4 md:p-6 rounded-xl shadow text-center">
+<div className="bg-white p-4 rounded-xl shadow text-center">
 <h3 className="text-gray-500">Inscritos</h3>
-<p className="text-2xl md:text-3xl font-bold">{jugadores.length}</p>
+<p className="text-2xl font-bold">{jugadores.length}</p>
 </div>
 
-<div className="bg-white p-4 md:p-6 rounded-xl shadow text-center">
+<div className="bg-white p-4 rounded-xl shadow text-center">
 <h3 className="text-gray-500">Pagados</h3>
-<p className="text-2xl md:text-3xl font-bold">
+<p className="text-2xl font-bold">
 {jugadores.filter(j=>j.pagado).length}
 </p>
 </div>
 
-<div className="bg-white p-4 md:p-6 rounded-xl shadow text-center">
+<div className="bg-white p-4 rounded-xl shadow text-center">
 <h3 className="text-gray-500">Pendientes</h3>
-<p className="text-2xl md:text-3xl font-bold">
+<p className="text-2xl font-bold">
 {jugadores.filter(j=>!j.pagado).length}
 </p>
 </div>
@@ -334,51 +480,68 @@ Abrir registro
 
 <div className="w-full overflow-x-auto">
 
-<table className="min-w-[720px] w-full bg-white shadow rounded-xl text-sm md:text-base">
+<table className="min-w-[900px] w-full bg-white shadow rounded-xl text-sm">
 
 <thead className="bg-gray-200">
 
 <tr>
-<th className="p-3 text-center">Player ID</th>
-<th className="p-3 text-center">Nombre</th>
-<th className="p-3 text-center">Año</th>
-<th className="p-3 text-center">Pago</th>
-<th className="p-3 text-center">Estado</th>
-<th className="p-3 text-center">Copiar</th>
-<th className="p-3 text-center">Quitar</th>
+
+<th onClick={()=>ordenarPor("player_id")} className="p-3 cursor-pointer">
+Player ID
+</th>
+
+<th onClick={()=>ordenarPor("nombre")} className="p-3 cursor-pointer">
+Nombre
+</th>
+
+<th onClick={()=>ordenarPor("anio")} className="p-3 cursor-pointer">
+Año
+</th>
+
+<th onClick={()=>ordenarPor("created_at")} className="p-3 cursor-pointer">
+Fecha inscripción
+</th>
+
+<th className="p-3">Pago</th>
+
+<th className="p-3">Estado</th>
+
+<th className="p-3">Copiar</th>
+
+<th className="p-3">Inscrito</th>
+
+<th className="p-3">Quitar</th>
+
 </tr>
 
 </thead>
 
 <tbody>
 
-{jugadores.map(j=>(
+{jugadoresOrdenados.map(j=>(
 
-<tr
-key={j.id}
-className={`border-t ${
-j.late ? "bg-yellow-100" : "odd:bg-gray-50"
-}`}
->
+<tr key={j.id} className={`border-t ${j.late ? "bg-yellow-100" : "odd:bg-gray-50"}`}>
 
 <td className="p-3 text-center">{j.jugadores.player_id}</td>
 
-<td className="p-3 whitespace-nowrap">
-{j.jugadores.nombre}
-</td>
+<td className="p-3">{j.jugadores.nombre}</td>
 
 <td className="p-3 text-center">{j.jugadores.anio_nacimiento}</td>
+
+<td className="p-3 text-center text-xs">
+{new Date(j.created_at).toLocaleString("es-MX")}
+</td>
 
 <td className="p-3 text-center">
 
 <button
 onClick={()=>togglePago(j)}
-className={`w-full py-2 md:py-3 rounded-xl font-bold text-white text-xs md:text-sm ${
+className={`px-3 py-1 rounded text-white ${
 j.pagado ? "bg-green-600" : "bg-red-600"
 }`}
 >
 
-{j.pagado ? "✔ Pagado" : "✖ No pagó"}
+{j.pagado ? "Pagado" : "No pagó"}
 
 </button>
 
@@ -396,12 +559,22 @@ j.pagado ? "bg-green-600" : "bg-red-600"
 <td className="p-3 text-center">
 
 <button
-onClick={() => {
+onClick={async ()=>{
+
 navigator.clipboard.writeText(j.jugadores.player_id)
-setMensaje("Player ID copiado con éxito")
-setTimeout(() => setMensaje(""), 2000)
+
+await supabase
+.from("inscripciones")
+.update({copiado:true})
+.eq("id",j.id)
+
+setMensaje("Player ID copiado")
+setTimeout(()=>setMensaje(""),2000)
+
+cargarJugadores()
+
 }}
-className="bg-[#00B7C3] text-white px-3 py-1 md:px-4 md:py-2 rounded text-xs md:text-sm"
+className="bg-[#00B7C3] text-white px-3 py-1 rounded"
 >
 Copiar
 </button>
@@ -411,8 +584,23 @@ Copiar
 <td className="p-3 text-center">
 
 <button
+onClick={()=>toggleCopiado(j)}
+className={`px-3 py-1 rounded text-white ${
+j.copiado ? "bg-green-600" : "bg-gray-400"
+}`}
+>
+
+{j.copiado ? "Inscrito" : "Pendiente"}
+
+</button>
+
+</td>
+
+<td className="p-3 text-center">
+
+<button
 onClick={()=>quitarInscripcion(j)}
-className="bg-red-600 text-white px-3 py-1 md:px-4 md:py-2 rounded text-xs md:text-sm"
+className="bg-red-600 text-white px-3 py-1 rounded"
 >
 Quitar
 </button>
@@ -438,6 +626,13 @@ Quitar
 <ConsultaJugadores volver={()=>setVista("torneo")} />
 
 )}
+
+{vista==="torneos" && (
+
+<TorneosAdmin volver={()=>setVista("torneo")} />
+
+)}
+
 </div>
 
 )
