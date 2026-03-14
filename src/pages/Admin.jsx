@@ -126,7 +126,7 @@ cargarEstado()
 
 async function cargarJugadores(){
 
-const today=new Date().toISOString().split("T")[0]
+const today = new Date().toLocaleDateString("en-CA")
 
 const {data}=await supabase
 .from("inscripciones")
