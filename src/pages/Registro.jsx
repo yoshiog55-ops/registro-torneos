@@ -123,6 +123,9 @@ Registro de jugador
 </h2>
 
 <input
+type="tel"
+inputMode="numeric"
+pattern="[0-9]*"
 placeholder="Player ID"
 className="border p-3 w-full mb-3 rounded"
 value={playerId}
@@ -137,14 +140,20 @@ onChange={(e)=>setNombre(e.target.value.replace(/[^A-Za-zÁÉÍÓÚáéíóúÑ�
 />
 
 <input
+type="tel"
+inputMode="numeric"
+pattern="[0-9]*"
 placeholder="Año nacimiento"
 className="border p-3 w-full mb-3 rounded"
 value={anio}
-maxLength="4"
+maxLength={4}
 onChange={(e)=>setAnio(e.target.value.replace(/\D/g,''))}
 />
 
 <input
+type="tel"
+inputMode="numeric"
+pattern="[0-9]*"
 placeholder="Teléfono"
 className="border p-3 w-full mb-4 rounded"
 value={telefono}

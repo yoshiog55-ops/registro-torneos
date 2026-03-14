@@ -225,7 +225,7 @@ Entrar
 
 return(
 
-<div className="max-w-6xl mx-auto px-2 md:px-0">
+<div className="max-w-7xl mx-auto px-3 md:px-6">
 
 {mensaje && (
 <div className="mb-4 bg-green-100 text-green-700 p-3 rounded text-center">
@@ -308,32 +308,32 @@ Abrir registro
 
 </div>
 
-<div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+<div className="grid grid-cols-3 gap-3 mb-6">
 
-<div className="bg-white p-6 rounded-xl shadow">
+<div className="bg-white p-4 md:p-6 rounded-xl shadow text-center">
 <h3 className="text-gray-500">Inscritos</h3>
-<p className="text-3xl font-bold">{jugadores.length}</p>
+<p className="text-2xl md:text-3xl font-bold">{jugadores.length}</p>
 </div>
 
-<div className="bg-white p-6 rounded-xl shadow">
+<div className="bg-white p-4 md:p-6 rounded-xl shadow text-center">
 <h3 className="text-gray-500">Pagados</h3>
-<p className="text-3xl font-bold">
+<p className="text-2xl md:text-3xl font-bold">
 {jugadores.filter(j=>j.pagado).length}
 </p>
 </div>
 
-<div className="bg-white p-6 rounded-xl shadow">
+<div className="bg-white p-4 md:p-6 rounded-xl shadow text-center">
 <h3 className="text-gray-500">Pendientes</h3>
-<p className="text-3xl font-bold">
+<p className="text-2xl md:text-3xl font-bold">
 {jugadores.filter(j=>!j.pagado).length}
 </p>
 </div>
 
 </div>
 
-<div className="overflow-x-auto">
+<div className="w-full overflow-x-auto">
 
-<table className="min-w-[700px] bg-white shadow rounded-xl">
+<table className="min-w-[720px] w-full bg-white shadow rounded-xl text-sm md:text-base">
 
 <thead className="bg-gray-200">
 
@@ -355,18 +355,24 @@ Abrir registro
 
 <tr
 key={j.id}
-className={j.late ? "bg-yellow-100" : ""}
+className={`border-t ${
+j.late ? "bg-yellow-100" : "odd:bg-gray-50"
+}`}
 >
 
 <td className="p-3">{j.jugadores.player_id}</td>
-<td className="p-3">{j.jugadores.nombre}</td>
+
+<td className="p-3 whitespace-nowrap">
+{j.jugadores.nombre}
+</td>
+
 <td className="p-3">{j.jugadores.anio_nacimiento}</td>
 
 <td className="p-3">
 
 <button
 onClick={()=>togglePago(j)}
-className={`w-full py-3 rounded-xl font-bold text-white ${
+className={`w-full py-2 md:py-3 rounded-xl font-bold text-white text-xs md:text-sm ${
 j.pagado ? "bg-green-600" : "bg-red-600"
 }`}
 >
@@ -394,7 +400,7 @@ navigator.clipboard.writeText(j.jugadores.player_id)
 setMensaje("Player ID copiado con éxito")
 setTimeout(() => setMensaje(""), 2000)
 }}
-className="bg-[#00B7C3] text-white px-3 py-1 rounded"
+className="bg-[#00B7C3] text-white px-3 py-1 md:px-4 md:py-2 rounded text-xs md:text-sm"
 >
 Copiar
 </button>
@@ -405,73 +411,9 @@ Copiar
 
 <button
 onClick={()=>quitarInscripcion(j)}
-className="bg-red-600 text-white px-3 py-1 rounded"
+className="bg-red-600 text-white px-3 py-1 md:px-4 md:py-2 rounded text-xs md:text-sm"
 >
 Quitar
-</button>
-
-</td>
-
-</tr>
-
-))}
-
-</tbody>
-
-</table>
-
-</div>
-
-</div>
-
-)}
-
-{vista==="jugadores" && (
-
-<div>
-
-<input
-placeholder="Buscar jugador"
-className="border p-2 mb-4 rounded w-full"
-onChange={(e)=>setBusqueda(e.target.value)}
-/>
-
-<div className="overflow-x-auto">
-
-<table className="min-w-[700px] bg-white shadow rounded-xl">
-
-<thead className="bg-gray-200">
-
-<tr>
-<th className="p-3">Player ID</th>
-<th className="p-3">Nombre</th>
-<th className="p-3">Año</th>
-<th className="p-3">Teléfono</th>
-<th className="p-3">Editar</th>
-</tr>
-
-</thead>
-
-<tbody>
-
-{jugadoresDB
-.filter(j=>j.nombre.toLowerCase().includes(busqueda.toLowerCase()))
-.map(j=>(
-
-<tr key={j.id} className="border-t">
-
-<td className="p-3">{j.player_id}</td>
-<td className="p-3">{j.nombre}</td>
-<td className="p-3">{j.anio_nacimiento}</td>
-<td className="p-3">{j.telefono}</td>
-
-<td className="p-3">
-
-<button
-onClick={()=>editarJugador(j)}
-className="bg-blue-600 text-white px-3 py-1 rounded"
->
-Editar
 </button>
 
 </td>

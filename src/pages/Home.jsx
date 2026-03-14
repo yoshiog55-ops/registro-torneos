@@ -86,6 +86,9 @@ Inscripción rápida
 </h2>
 
 <input
+type="tel"
+inputMode="numeric"
+pattern="[0-9]*"
 placeholder="Player ID o Teléfono"
 className="border p-3 w-full mb-4 rounded"
 value={busqueda}
