@@ -111,11 +111,11 @@ const cargarRondas = async () => {
   // 📊 STATS
   // =========================
   const cargarStats = async () => {
-
-    const { data } = await supabase
-      .from("matches")
-      .select("*")
-      .eq("ronda_id", rondaSeleccionada)
+const { data } = await supabase
+  .from("matches")
+  .select("*")
+  .eq("ronda_id", rondaSeleccionada)
+  .order("mesa", { ascending: true })
 
     if(!data){
       setStats(null)
