@@ -92,43 +92,6 @@ useEffect(() => {
   const ronda = rondas.find(r => r.id === rondaSeleccionada)
   if(!ronda) return
 
-  const intervalo = setInterval(() => {
-
-    const ahora = new Date()
-    const creada = new Date(ronda.created_at)
-
-    const inicio = new Date(creada.getTime().toLocaleString("es-MX", {
-  timeZone: "America/Mexico_City"
-}) + 5 * 60000)
-    const fin = new Date(inicio.getTime().toLocaleString("es-MX", {
-  timeZone: "America/Mexico_City"
-}) + 30 * 60000)
-
-    if(ahora < inicio){
-      // ⏳ Aún no empieza
-      const diff = Math.floor((inicio - ahora) / 1000)
-      setTiempoRestante(`Empieza en ${diff}s`)
-    }
-    else if(ahora >= inicio && ahora <= fin){
-      // ▶️ En curso
-      const diff = Math.floor((fin - ahora) / 1000)
-
-      const min = Math.floor(diff / 60)
-      const sec = diff % 60
-
-      setTiempoRestante(`${min}:${sec.toString().padStart(2, "0")}`)
-    }
-    else{
-      // ⛔ Terminó
-      setTiempoRestante("⛔ Tiempo finalizado")
-    }
-
-  }, 1000)
-
-  return () => clearInterval(intervalo)
-
-}, [rondas, rondaSeleccionada])
-
   useEffect(() => {
     if(rondaSeleccionada && modo === "rondas"){
       localStorage.setItem("ronda_id", rondaSeleccionada)
