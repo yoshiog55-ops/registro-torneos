@@ -92,12 +92,12 @@ useEffect(() => {
   const ronda = rondas.find(r => r.id === rondaSeleccionada)
   if(!ronda) return
 
-  useEffect(() => {
-    if(rondaSeleccionada && modo === "rondas"){
-      localStorage.setItem("ronda_id", rondaSeleccionada)
-      cargarMatches()
-    }
-  }, [rondaSeleccionada])
+useEffect(() => {
+  if(rondaSeleccionada && modo === "rondas"){
+    localStorage.setItem("ronda_id", rondaSeleccionada)
+    cargarMatches()
+  }
+}, [rondaSeleccionada, modo])
 
   // =========================
   // 📊 RONDAS
@@ -266,22 +266,21 @@ let formateado = data.map(m => {
     }
   }
 
-  useEffect(() => {
-
-  if(!rondaSeleccionada) return
+useEffect(() => {
 
   const channel = supabase
-    .channel('matches-changes')
+    .channel('matches-global')
     .on(
       'postgres_changes',
       {
         event: '*',
         schema: 'public',
-        table: 'matches',
-        filter: `ronda_id=eq.${rondaSeleccionada}`
+        table: 'matches'
       },
-      () => {
-        cargarMatches()
+      async () => {
+        if(modo === "rondas"){
+          await cargarMatches()
+        }
       }
     )
     .subscribe()
@@ -290,7 +289,7 @@ let formateado = data.map(m => {
     supabase.removeChannel(channel)
   }
 
-}, [rondaSeleccionada])
+}, [modo, rondaSeleccionada])
 
 useEffect(() => {
 
@@ -305,6 +304,29 @@ useEffect(() => {
       },
       () => {
         cargarStandings()
+      }
+    )
+    .subscribe()
+
+  return () => {
+    supabase.removeChannel(channel)
+  }
+
+}, [])
+
+useEffect(() => {
+
+  const channel = supabase
+    .channel('rondas-changes')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'rondas'
+      },
+      async () => {
+        await cargarRondas()
       }
     )
     .subscribe()
