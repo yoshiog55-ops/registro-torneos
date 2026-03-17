@@ -73,25 +73,36 @@ export default function Pareos() {
   // =========================
   // 📊 RONDAS
   // =========================
-  const cargarRondas = async () => {
+const cargarRondas = async () => {
 
-    const { data } = await supabase
-      .from("rondas")
-      .select("*")
-      .order("numero_ronda", { ascending: false })
+  const { data } = await supabase
+    .from("rondas")
+    .select("*")
+    .order("numero_ronda", { ascending: false })
 
-    setRondas(data || [])
+  setRondas(data || [])
 
-    const activa = data?.find(r => r.status === "activa")
+  const activa = data?.find(r => r.status === "activa")
 
-    if(activa){
-      setModo("rondas")
-      setRondaSeleccionada(activa.id)
-    }else{
+  if(activa){
+    setModo("rondas")
+    setRondaSeleccionada(activa.id)
+  }else{
+
+    // 🔥 validar si hay standings reales
+    const { data: standingsData } = await supabase
+      .from("standings")
+      .select("id")
+      .limit(1)
+
+    if(standingsData && standingsData.length > 0){
       setModo("standings")
       cargarStandings()
+    }else{
+      setModo("sin_datos") // 🔥 NUEVO MODO
     }
   }
+}
 
   // =========================
   // 📊 MATCHES
@@ -421,6 +432,12 @@ useEffect(() => {
 
         </div>
       )}
+
+      {modo === "sin_datos" && (
+  <div className="bg-white p-6 rounded shadow text-center">
+    📭 Aún no existen pareos para este torneo
+  </div>
+)}
 
       {/* 🎮 RONDAS */}
       {modo === "rondas" && (
