@@ -65,10 +65,9 @@ export const guardarRonda = async (torneo_id, ronda) => {
   }
 
   // 🧠 status
-  const status =
-    ronda.stage === "2" ? "activa" :
-    ronda.stage === "6" ? "activa" :
-    "finalizada"
+const todosConResultado = ronda.matches.every(m => m.outcome)
+
+const status = todosConResultado ? "finalizada" : "activa"
 
   const { data: rondaDB } = await supabase
     .from("rondas")

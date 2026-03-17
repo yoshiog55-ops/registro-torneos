@@ -77,29 +77,41 @@ export default function AdminRondas() {
   }
 
   // 🔒 FINALIZAR
-  const finalizarRonda = async () => {
+const finalizarRonda = async () => {
 
-    const { data: matches } = await supabase
-      .from("matches")
-      .select("*")
-      .eq("ronda_id", rondaSeleccionada)
+  const { data: matches } = await supabase
+    .from("matches")
+    .select("*")
+    .eq("ronda_id", rondaSeleccionada)
 
-    const pendientes = matches.filter(m => !m.confirmado)
-
-    if(pendientes.length > 0){
-      const confirmar = confirm(
-        `Hay ${pendientes.length} pendientes ¿cerrar?`
-      )
-      if(!confirmar) return
-    }
-
-    await supabase
-      .from("rondas")
-      .update({ status: "finalizada" })
-      .eq("id", rondaSeleccionada)
-
-    cargarRondas()
+  if(!matches){
+    setMensaje("❌ Error al cargar matches")
+    return
   }
+
+  const pendientes = matches.filter(m => !m.confirmado)
+
+  if(pendientes.length > 0){
+    const confirmar = confirm(
+      `Hay ${pendientes.length} pendientes ¿cerrar?`
+    )
+    if(!confirmar) return
+  }
+
+  await supabase
+    .from("rondas")
+    .update({ status: "finalizada" })
+    .eq("id", rondaSeleccionada)
+
+  // 🔥 LIMPIAR SELECCIÓN
+  setRondaSeleccionada(null)
+
+  // 🔥 FORZAR RECARGA COMPLETA
+  await cargarRondas()
+  await cargarStandings()
+
+  setMensaje("✅ Ronda finalizada")
+}
 
   return (
     <div className="max-w-4xl mx-auto p-4">

@@ -19,6 +19,9 @@ export default function SubirTDF() {
   const [stats, setStats] = useState(null)
   const [matchesDetalle, setMatchesDetalle] = useState([])
 
+  const [standingsPreview, setStandingsPreview] = useState([])
+  const [standings, setStandings] = useState([])
+
   // =========================
   // 🔥 CARGAR TORNEOS
   // =========================
@@ -33,10 +36,8 @@ export default function SubirTDF() {
       .eq("activo", true)
 
     const lista = data || []
-
     setTorneos(lista)
 
-    // 🔥 auto seleccionar si solo hay uno
     if(lista.length === 1){
       setTorneoSeleccionado(lista[0].id)
     }
@@ -60,24 +61,28 @@ export default function SubirTDF() {
   // =========================
   // 📊 RONDAS
   // =========================
-  const cargarRondas = async () => {
+const cargarRondas = async () => {
 
-    const { data } = await supabase
-      .from("rondas")
-      .select("*")
-      .eq("torneo_id", torneoSeleccionado)
-      .order("numero_ronda", { ascending: false })
+  const { data } = await supabase
+    .from("rondas")
+    .select("*")
+    .eq("torneo_id", torneoSeleccionado)
+    .order("numero_ronda", { ascending: false })
 
-    setRondas(data || [])
+ setRondas([...(data || [])])
 
-    const activa = data?.find(r => r.status === "activa")
-    if(activa){
-      setRondaSeleccionada(activa.id)
-    }
+  const activa = data?.find(r => r.status === "activa")
+
+  if(activa){
+    setRondaSeleccionada(activa.id)
+  }else{
+    setRondaSeleccionada(null)
+    await cargarStandings()
   }
+}
 
   // =========================
-  // 📊 STATS + DETALLE
+  // 📊 STATS
   // =========================
   const cargarStats = async () => {
 
@@ -95,7 +100,6 @@ export default function SubirTDF() {
     const confirmados = data.filter(m => m.confirmado).length
     const pendientes = data.filter(m => !m.confirmado)
 
-    // 🔥 nombres
     const ids = [
       ...new Set(data.flatMap(m => [m.jugador1_id, m.jugador2_id]))
     ]
@@ -128,8 +132,18 @@ export default function SubirTDF() {
   // =========================
   // 📤 SUBIR ARCHIVO
   // =========================
+  
   const handleFile = async (e) => {
+const { data: activa } = await supabase
+  .from("rondas")
+  .select("*")
+  .eq("torneo_id", torneoSeleccionado)
+  .eq("status", "activa")
 
+if(activa && activa.length > 0){
+  setMensaje("❌ Debes finalizar la ronda actual antes de subir otra")
+  return
+}
     if(!torneoSeleccionado){
       setMensaje("❌ Selecciona un torneo primero")
       return
@@ -142,55 +156,132 @@ export default function SubirTDF() {
     setMensaje("")
     setPreview(null)
     setPuedeReemplazar(false)
+    setStandingsPreview([])
 
     try{
-      const { rounds } = await parseTDF(f)
+      const { rounds, standings } = await parseTDF(f)
 
-      if(!rounds || rounds.length === 0){
+      if(
+        (!rounds || rounds.length === 0) &&
+        (!standings || standings.length === 0)
+      ){
         throw new Error("Archivo inválido")
       }
 
-      const ronda = rounds[rounds.length - 1]
+      const esSoloStandings = (!rounds || rounds.length === 0) && standings?.length > 0
 
-      const { data: activa } = await supabase
-        .from("rondas")
-        .select("*")
-        .eq("torneo_id", torneoSeleccionado)
-        .eq("status", "activa")
-
-      if(activa.length > 0){
-        const rondaActiva = activa[0]
-
-        if(rondaActiva.numero_ronda === ronda.numero){
-          setPuedeReemplazar(true)
-          setMensaje("⚠️ Esta ronda ya existe (puedes reemplazarla)")
-        }else{
-          throw new Error("Ya hay una ronda activa. Debes finalizarla antes.")
-        }
+      if(rounds && rounds.length > 0){
+        const ronda = rounds[rounds.length - 1]
+        setPreview(ronda)
+      }else{
+        setPreview(null)
       }
 
-      setPreview(ronda)
+      if(standings && standings.length > 0){
+        setStandingsPreview(standings)
+
+        if(esSoloStandings){
+          setMensaje("🏆 Archivo de clasificación final detectado")
+        }else{
+          setMensaje("📊 Archivo con ronda + standings")
+        }
+      }
 
     }catch(err){
       setMensaje("❌ " + err.message)
     }
   }
 
+  // =========================
+  // 📤 SUBIR
+  // =========================
   const handleUpload = async () => {
 
-    if(!preview || !torneoSeleccionado) return
+    if(!torneoSeleccionado) return
 
-    if(!confirm("¿Confirmar subida de ronda?")) return
+    if(!confirm("¿Confirmar subida?")) return
 
     try{
       setLoading(true)
 
-      await guardarRonda(torneoSeleccionado, preview)
+      const esSoloStandings = standingsPreview.length > 0 && !preview
+
+      // 🏆 SOLO STANDINGS
+      if(esSoloStandings){
+
+        await supabase
+          .from("standings")
+          .delete()
+          .eq("torneo_id", torneoSeleccionado)
+
+        await supabase
+          .from("standings")
+          .insert(
+            standingsPreview.map(s => ({
+              torneo_id: torneoSeleccionado,
+              player_id: s.player_id,
+              posicion: s.posicion
+            }))
+          )
+
+        setMensaje("🏆 Standings finales publicados")
+
+        setPreview(null)
+        setFile(null)
+        setStandingsPreview([])
+
+        await cargarRondas()
+        await cargarStandings()
+
+        return
+      }
+
+      // 🎮 RONDA NORMAL
+      if(preview){
+        await guardarRonda(torneoSeleccionado, preview)
+      }
+
+// 🔥 SI TRAE STANDINGS → NO CREAR RONDA
+if(standingsPreview.length > 0){
+
+  const confirmar = confirm("¿Publicar standings finales?")
+  if(!confirmar) return
+
+  // 🧹 borrar standings previos
+  await supabase
+    .from("standings")
+    .delete()
+    .eq("torneo_id", torneoSeleccionado)
+
+  // 💾 insertar standings
+  await supabase
+    .from("standings")
+    .insert(
+      standingsPreview.map(s => ({
+        torneo_id: torneoSeleccionado,
+        player_id: s.player_id,
+        posicion: s.posicion
+      }))
+    )
+
+  setMensaje("🏆 Standings finales publicados")
+
+  // 🔥 FORZAR MODO FINAL
+  setRondaSeleccionada(null)
+  await cargarStandings()
+
+  return // ⛔ IMPORTANTE: NO guarda ronda
+}
+
+// 👉 SOLO si NO hay standings
+setMensaje("✅ Ronda guardada correctamente")
 
       setMensaje("✅ Ronda guardada correctamente")
+
       setPreview(null)
       setFile(null)
       setPuedeReemplazar(false)
+      setStandingsPreview([])
 
       await cargarRondas()
 
@@ -204,29 +295,46 @@ export default function SubirTDF() {
   // =========================
   // 🔒 FINALIZAR RONDA
   // =========================
-  const finalizarRonda = async () => {
+const finalizarRonda = async () => {
 
-    const { data: matches } = await supabase
-      .from("matches")
-      .select("*")
-      .eq("ronda_id", rondaSeleccionada)
+  const { data: matches, error } = await supabase
+    .from("matches")
+    .select("*")
+    .eq("ronda_id", rondaSeleccionada)
 
-    const pendientes = matches.filter(m => !m.confirmado)
-
-    if(pendientes.length > 0){
-      const confirmar = confirm(
-        `Hay ${pendientes.length} pendientes ¿cerrar?`
-      )
-      if(!confirmar) return
-    }
-
-    await supabase
-      .from("rondas")
-      .update({ status: "finalizada" })
-      .eq("id", rondaSeleccionada)
-
-    await cargarRondas()
+  if(error){
+    alert("❌ Error al obtener matches")
+    return
   }
+
+  const lista = matches || []
+
+  if(lista.length === 0){
+    alert("⚠️ No hay partidas en esta ronda")
+    return
+  }
+
+  const pendientes = lista.filter(m => !m.confirmado)
+
+  if(pendientes.length > 0){
+    alert(`❌ No puedes finalizar. Hay ${pendientes.length} pendientes`)
+    return
+  }
+
+await supabase
+  .from("rondas")
+  .update({ status: "finalizada" })
+  .eq("id", rondaSeleccionada)
+
+// 🔥 LIMPIAR SELECCIÓN
+setRondaSeleccionada(null)
+
+// 🔥 RECARGAR TODO
+await cargarRondas()
+
+// 🔥 OPCIONAL PERO RECOMENDADO
+setMensaje("✅ Ronda finalizada")
+}
 
   // =========================
   // 🧑‍💼 REPORTAR ADMIN
@@ -234,30 +342,38 @@ export default function SubirTDF() {
   const reportarAdmin = async (match, ganador) => {
 
     if(ganador === "empate"){
-      await supabase
-        .from("matches")
-        .update({
-          empate: true,
-          ganador_final: null,
-          confirmado: true,
-          ganador_reportado_1: null,
-          ganador_reportado_2: null
-        })
-        .eq("id", match.id)
+      await supabase.from("matches").update({
+        empate: true,
+        ganador_final: null,
+        confirmado: true,
+        ganador_reportado_1: null,
+        ganador_reportado_2: null
+      }).eq("id", match.id)
     }else{
-      await supabase
-        .from("matches")
-        .update({
-          ganador_final: ganador,
-          empate: false,
-          confirmado: true,
-          ganador_reportado_1: ganador,
-          ganador_reportado_2: ganador
-        })
-        .eq("id", match.id)
+      await supabase.from("matches").update({
+        ganador_final: ganador,
+        empate: false,
+        confirmado: true,
+        ganador_reportado_1: ganador,
+        ganador_reportado_2: ganador
+      }).eq("id", match.id)
     }
 
     await cargarStats()
+  }
+
+  // =========================
+  // 🏆 STANDINGS
+  // =========================
+  const cargarStandings = async () => {
+
+    const { data } = await supabase
+      .from("standings")
+      .select("*")
+      .eq("torneo_id", torneoSeleccionado)
+      .order("posicion", { ascending: true })
+
+    setStandings(data || [])
   }
 
   const rondaActual = rondas.find(r => r.id === rondaSeleccionada)
@@ -265,9 +381,7 @@ export default function SubirTDF() {
   return (
     <div className="bg-white p-5 rounded-xl shadow">
 
-      <h3 className="text-lg font-bold mb-4">
-        📤 Subir ronda (TDF)
-      </h3>
+      <h3 className="text-lg font-bold mb-4">📤 Subir ronda (TDF)</h3>
 
       <select
         value={torneoSeleccionado}
@@ -276,18 +390,14 @@ export default function SubirTDF() {
       >
         <option value="">Selecciona torneo</option>
         {torneos.map(t=>(
-          <option key={t.id} value={t.id}>
-            {t.nombre}
-          </option>
+          <option key={t.id} value={t.id}>{t.nombre}</option>
         ))}
       </select>
 
       <input type="file" accept=".tdf" onChange={handleFile} className="mb-4"/>
 
       {mensaje && (
-        <div className="mb-4 text-sm p-2 rounded bg-gray-100">
-          {mensaje}
-        </div>
+        <div className="mb-4 text-sm p-2 rounded bg-gray-100">{mensaje}</div>
       )}
 
       {preview && (
@@ -298,8 +408,12 @@ export default function SubirTDF() {
 
       <button
         onClick={handleUpload}
-        disabled={!preview || loading}
-        className="w-full py-2 rounded bg-green-600 text-white"
+        disabled={(!preview && standingsPreview.length === 0) || loading}
+        className={`w-full py-2 rounded text-white ${
+          (!preview && standingsPreview.length === 0)
+            ? "bg-gray-400"
+            : "bg-green-600"
+        }`}
       >
         Subir ronda
       </button>
@@ -334,22 +448,26 @@ export default function SubirTDF() {
 
           {stats && (
             <div className="bg-gray-100 p-3 rounded">
-
               <p>Total: {stats.total}</p>
               <p className="text-green-600">Confirmados: {stats.confirmados}</p>
               <p className="text-red-600">Pendientes: {stats.pendientes}</p>
 
-              <button
-                onClick={finalizarRonda}
-                className="bg-red-600 text-white w-full mt-3 py-2 rounded"
-              >
-                Finalizar ronda
-              </button>
-
+{rondaActual?.status === "activa" && (
+  <button
+    onClick={finalizarRonda}
+    disabled={stats?.pendientes > 0}
+    className={`w-full mt-3 py-2 rounded text-white ${
+      stats?.pendientes > 0
+        ? "bg-gray-400"
+        : "bg-red-600"
+    }`}
+  >
+    Finalizar ronda
+  </button>
+)}
             </div>
           )}
 
-          {/* PENDIENTES */}
           {matchesDetalle.length > 0 && (
             <div className="mt-4 space-y-2">
 
@@ -372,6 +490,22 @@ export default function SubirTDF() {
 
             </div>
           )}
+
+        </div>
+      )}
+
+      {/* STANDINGS */}
+      {rondas.every(r => r.status === "finalizada") && standings.length > 0 && (
+        <div className="mt-6 bg-white p-3 rounded shadow">
+
+          <p className="font-bold mb-2">🏆 Standings</p>
+
+          {standings.map(s => (
+            <div key={s.player_id} className="flex justify-between border-b py-1">
+              <span>#{s.posicion}</span>
+              <span>{s.player_id}</span>
+            </div>
+          ))}
 
         </div>
       )}

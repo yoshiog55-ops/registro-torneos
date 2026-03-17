@@ -1,52 +1,52 @@
-export const parseTDF = async (file) => {
+export async function parseTDF(file){
+
   const text = await file.text()
+
   const parser = new DOMParser()
   const xml = parser.parseFromString(text, "text/xml")
 
-  const players = {}
+  // =========================
+  // 🎮 ROUNDS
+  // =========================
+  const roundsXML = xml.querySelectorAll("round")
 
-  xml.querySelectorAll("players player").forEach(p => {
-    const id = p.getAttribute("userid")
+  const rounds = Array.from(roundsXML).map(r => {
 
-    const first = p.querySelector("firstname")?.textContent || ""
-    const last = p.querySelector("lastname")?.textContent || ""
+    const numero = Number(r.getAttribute("number"))
 
-    const nombre = `${first} ${last}`.trim() || `Jugador ${id}`
+    const matchesXML = r.querySelectorAll("match")
 
-    players[id] = nombre
-  })
+    const matches = Array.from(matchesXML).map(m => {
 
-  const rounds = []
+      const p1 = m.querySelector("player1")?.getAttribute("userid")
+      const p2 = m.querySelector("player2")?.getAttribute("userid")
+      const mesa = m.querySelector("tablenumber")?.textContent
 
-  xml.querySelectorAll("round").forEach(r => {
-    const numero = parseInt(r.getAttribute("number"))
-    const stage = r.getAttribute("stage")
-
-    const matches = []
-
-    r.querySelectorAll("match").forEach(m => {
-
-      const p1Node = m.querySelector("player1")
-      const p2Node = m.querySelector("player2")
-
-      if(!p1Node || !p2Node) return // 🔥 evita crashes
-
-      const p1 = p1Node.getAttribute("userid")
-      const p2 = p2Node.getAttribute("userid")
-
-      const outcome = m.getAttribute("outcome")
-      const mesa = m.querySelector("tablenumber")?.textContent || "0"
-
-      matches.push({
+      return {
         jugador1_id: p1,
         jugador2_id: p2,
-        mesa,
-        outcome
-      })
+        mesa: Number(mesa)
+      }
     })
 
-    rounds.push({ numero, stage, matches })
+    return {
+      numero,
+      matches
+    }
   })
 
-  return { players, rounds }
+  // =========================
+  // 🏆 STANDINGS
+  // =========================
+  const standingsXML = xml.querySelectorAll("standings pod[type='finished'] player")
+
+  const standings = Array.from(standingsXML).map(p => ({
+    player_id: p.getAttribute("id"),
+    posicion: Number(p.getAttribute("place")),
+  }))
+
+  return {
+    rounds,
+    standings
+  }
 }

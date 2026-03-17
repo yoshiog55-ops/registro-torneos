@@ -8,6 +8,9 @@ export default function Pareos() {
   const [rondas, setRondas] = useState([])
   const [rondaSeleccionada, setRondaSeleccionada] = useState(null)
   const [matches, setMatches] = useState([])
+  const [standings, setStandings] = useState([])
+
+  const [pendientes, setPendientes] = useState([]) // 🔥 NUEVO
 
   const [userId, setUserId] = useState(null)
   const [inputId, setInputId] = useState("")
@@ -16,7 +19,11 @@ export default function Pareos() {
   const [confirmacion, setConfirmacion] = useState(null)
   const [mensaje, setMensaje] = useState("")
 
+  const [modo, setModo] = useState("rondas")
+
+  // =========================
   // 🔐 INIT
+  // =========================
   useEffect(() => {
     init()
   }, [])
@@ -26,6 +33,7 @@ export default function Pareos() {
     const { data } = await supabase.auth.getSession()
 
     if(data.session){
+      // ⚠️ aquí puedes mejorar luego con rol real
       setEsAdmin(true)
     }
 
@@ -34,17 +42,39 @@ export default function Pareos() {
       setUserId(saved)
     }
 
+    const savedRonda = localStorage.getItem("ronda_id")
+    if(savedRonda){
+      setRondaSeleccionada(savedRonda)
+    }
+
     cargarRondas()
   }
 
+  // =========================
+  // 🔄 REFRESH
+  // =========================
+  const refrescar = async () => {
+    await cargarRondas()
+
+    if(modo === "rondas"){
+      await cargarMatches()
+    }else{
+      await cargarStandings()
+    }
+  }
+
   useEffect(() => {
-    if(rondaSeleccionada){
+    if(rondaSeleccionada && modo === "rondas"){
+      localStorage.setItem("ronda_id", rondaSeleccionada)
       cargarMatches()
     }
   }, [rondaSeleccionada])
 
+  // =========================
   // 📊 RONDAS
+  // =========================
   const cargarRondas = async () => {
+
     const { data } = await supabase
       .from("rondas")
       .select("*")
@@ -53,22 +83,30 @@ export default function Pareos() {
     setRondas(data || [])
 
     const activa = data?.find(r => r.status === "activa")
+
     if(activa){
+      setModo("rondas")
       setRondaSeleccionada(activa.id)
+    }else{
+      setModo("standings")
+      cargarStandings()
     }
   }
 
+  // =========================
   // 📊 MATCHES
+  // =========================
   const cargarMatches = async () => {
 
-const { data } = await supabase
-  .from("matches")
-  .select("*")
-  .eq("ronda_id", rondaSeleccionada)
-  .order("mesa", { ascending: true })
+    const { data } = await supabase
+      .from("matches")
+      .select("*")
+      .eq("ronda_id", rondaSeleccionada)
+      .order("mesa", { ascending: true })
 
     if(!data){
       setMatches([])
+      setPendientes([])
       return
     }
 
@@ -86,13 +124,33 @@ const { data } = await supabase
       mapa[j.player_id] = j.nombre
     })
 
-    let formateado = data.map(m => ({
-      ...m,
-      jugador1_nombre: mapa[m.jugador1_id] || "Desconocido",
-      jugador2_nombre: mapa[m.jugador2_id] || "Desconocido"
-    }))
+let formateado = data.map(m => {
 
-    // 🔥 FILTRAR SOLO SUS MATCHES (si no es admin)
+  const j1 = String(m.jugador1_id)
+  const j2 = String(m.jugador2_id)
+
+  const r1 = m.ganador_reportado_1
+  const r2 = m.ganador_reportado_2
+
+  let estado = "pendiente"
+
+  if(m.confirmado){
+    estado = "confirmado"
+  }else if(r1 && r2 && r1 !== r2){
+    estado = "conflicto"
+  }else if(r1 || r2){
+    estado = "esperando"
+  }
+
+  return {
+    ...m,
+    estado, // 🔥 NUEVO
+    jugador1_nombre: mapa[m.jugador1_id] || "Desconocido",
+    jugador2_nombre: mapa[m.jugador2_id] || "Desconocido"
+  }
+})
+
+    // 🔥 filtro jugador
     if(!esAdmin && userId){
       formateado = formateado.filter(m =>
         String(m.jugador1_id) === String(userId) ||
@@ -100,11 +158,53 @@ const { data } = await supabase
       )
     }
 
+    // 🔥 pendientes
+    const pendientesFiltrados = formateado.filter(m => !m.confirmado)
+
+    setPendientes(pendientesFiltrados)
     setMatches(formateado)
   }
 
+  // =========================
+  // 🏆 STANDINGS
+  // =========================
+  const cargarStandings = async () => {
+
+    const { data } = await supabase
+      .from("standings")
+      .select("*")
+      .order("posicion", { ascending: true })
+
+    if(!data){
+      setStandings([])
+      return
+    }
+
+    const ids = data.map(s => s.player_id)
+
+    const { data: jugadores } = await supabase
+      .from("jugadores")
+      .select("player_id, nombre")
+      .in("player_id", ids)
+
+    const mapa = {}
+    jugadores?.forEach(j => {
+      mapa[j.player_id] = j.nombre
+    })
+
+    const formateado = data.map(s => ({
+      ...s,
+      nombre: mapa[s.player_id] || s.player_id
+    }))
+
+    setStandings(formateado)
+  }
+
+  // =========================
   // 🔄 CONFIRMACIÓN DOBLE
+  // =========================
   const actualizarConfirmacion = async (matchId) => {
+
     const { data } = await supabase
       .from("matches")
       .select("*")
@@ -126,125 +226,133 @@ const { data } = await supabase
     }
   }
 
-  // 🎯 REPORTAR
-const reportar = async (match, ganador) => {
+  useEffect(() => {
 
-  const user = String(userId || "").trim()
-  const j1 = String(match.jugador1_id).trim()
-  const j2 = String(match.jugador2_id).trim()
+  if(!rondaSeleccionada) return
 
-  // 🚫 validación
-  if(!esAdmin && user !== j1 && user !== j2){
-    setMensaje("❌ No puedes reportar este match")
-    return
+  const channel = supabase
+    .channel('matches-changes')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'matches',
+        filter: `ronda_id=eq.${rondaSeleccionada}`
+      },
+      () => {
+        cargarMatches()
+      }
+    )
+    .subscribe()
+
+  return () => {
+    supabase.removeChannel(channel)
   }
 
-  // =========================
-  // 🟡 EMPATE
-  // =========================
-  if(ganador === "empate"){
+}, [rondaSeleccionada])
 
-    // 🧑‍💼 ADMIN → directo
-    if(esAdmin){
-      await supabase
-        .from("matches")
-        .update({
+useEffect(() => {
+
+  const channel = supabase
+    .channel('standings-changes')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'standings'
+      },
+      () => {
+        cargarStandings()
+      }
+    )
+    .subscribe()
+
+  return () => {
+    supabase.removeChannel(channel)
+  }
+
+}, [])
+
+  // =========================
+  // 🎯 REPORTAR
+  // =========================
+  const reportar = async (match, ganador) => {
+
+    const user = String(userId || "").trim()
+    const j1 = String(match.jugador1_id).trim()
+    const j2 = String(match.jugador2_id).trim()
+
+    if(!esAdmin && user !== j1 && user !== j2){
+      setMensaje("❌ No puedes reportar este match")
+      return
+    }
+
+    // 🟡 EMPATE
+    if(ganador === "empate"){
+
+      if(esAdmin){
+        await supabase.from("matches").update({
           empate: true,
           ganador_final: null,
           confirmado: true,
           ganador_reportado_1: null,
           ganador_reportado_2: null
-        })
-        .eq("id", match.id)
+        }).eq("id", match.id)
+
+        cargarMatches()
+        return
+      }
+
+      await supabase.from("matches").update({
+        empate: true,
+        ganador_final: null,
+        confirmado: false,
+        ganador_reportado_1: null,
+        ganador_reportado_2: null
+      }).eq("id", match.id)
+
+      cargarMatches()
+      return
+    }
+
+    // 🧑‍💼 ADMIN
+    if(esAdmin){
+      await supabase.from("matches").update({
+        ganador_final: ganador,
+        empate: false,
+        confirmado: true,
+        ganador_reportado_1: ganador,
+        ganador_reportado_2: ganador
+      }).eq("id", match.id)
 
       cargarMatches()
       return
     }
 
     // 👤 jugador
-    await supabase
-      .from("matches")
-      .update({
-        empate: true,
-        ganador_final: null
-      })
-      .eq("id", match.id)
+    const campo =
+      user === j1
+        ? "ganador_reportado_1"
+        : "ganador_reportado_2"
 
-    await actualizarConfirmacion(match.id)
-    cargarMatches()
-    return
-  }
-
-  // =========================
-  // 🧑‍💼 ADMIN → gana directo
-  // =========================
-  if(esAdmin){
-
-    await supabase
-      .from("matches")
-      .update({
-        ganador_final: ganador,
-        empate: false, // 🔥 AQUÍ SE LIMPIA
-        confirmado: true,
-        ganador_reportado_1: ganador,
-        ganador_reportado_2: ganador
-      })
-      .eq("id", match.id)
-
-    cargarMatches()
-    return
-  }
-
-  // =========================
-  // 👤 JUGADOR
-  // =========================
-  const campo =
-    user === j1
-      ? "ganador_reportado_1"
-      : "ganador_reportado_2"
-
-  await supabase
-    .from("matches")
-    .update({
+    await supabase.from("matches").update({
       [campo]: ganador,
-      empate: false // 🔥 AQUÍ TAMBIÉN
-    })
-    .eq("id", match.id)
-
-  await actualizarConfirmacion(match.id)
-
-  cargarMatches()
-}
-
-  const confirmarReporte = async () => {
-
-    const { match, ganador } = confirmacion
-
-    let campo = "ganador_reportado_1"
-
-    if(!esAdmin){
-      campo =
-        String(userId) === String(match.jugador1_id)
-          ? "ganador_reportado_1"
-          : "ganador_reportado_2"
-    }
-
-    await supabase
-      .from("matches")
-      .update({ [campo]: ganador })
-      .eq("id", match.id)
+      empate: false
+    }).eq("id", match.id)
 
     await actualizarConfirmacion(match.id)
 
-    setConfirmacion(null)
     cargarMatches()
   }
 
-  // 📱 MODAL PLAYER ID
+  // =========================
+  // 📱 PLAYER ID MODAL
+  // =========================
   if(!esAdmin && !userId){
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-
         <div className="bg-white p-5 rounded-xl w-[90%] max-w-sm">
 
           <h3 className="text-center font-bold mb-3">
@@ -275,9 +383,22 @@ const reportar = async (match, ganador) => {
   return (
     <div className="max-w-3xl mx-auto p-4">
 
-      <h2 className="text-xl font-bold mb-4">
-        📊 Pareos
-      </h2>
+      <h2 className="text-xl font-bold mb-4">📊 Pareos</h2>
+
+      {/* 🔄 REFRESH */}
+      <button
+        onClick={refrescar}
+        className="bg-gray-700 text-white px-4 py-2 rounded mb-4 w-full"
+      >
+        🔄 Refrescar
+      </button>
+
+      {/* 🔥 PENDIENTES */}
+      {pendientes.length > 0 && modo === "rondas" && (
+        <div className="bg-yellow-100 p-3 rounded mb-3 text-center">
+          ⚠️ Tienes {pendientes.length} match(es) pendientes
+        </div>
+      )}
 
       {mensaje && (
         <div className="bg-red-100 text-red-700 p-2 mb-3 rounded text-center">
@@ -285,11 +406,24 @@ const reportar = async (match, ganador) => {
         </div>
       )}
 
-      {rondas.length === 0 ? (
-        <div className="bg-white p-4 rounded shadow text-center">
-          ⚠️ No hay rondas disponibles
+      {/* 🏆 STANDINGS */}
+      {modo === "standings" && (
+        <div className="bg-white p-4 rounded shadow">
+
+          <h3 className="font-bold mb-3">🏆 Standings</h3>
+
+          {standings.map(s => (
+            <div key={s.player_id} className="flex justify-between border-b py-2">
+              <span className="w-8 font-bold">#{s.posicion}</span>
+              <span className="flex-1">{s.nombre}</span>
+            </div>
+          ))}
+
         </div>
-      ) : (
+      )}
+
+      {/* 🎮 RONDAS */}
+      {modo === "rondas" && (
         <>
           <SelectorRonda
             rondas={rondas}
@@ -304,48 +438,17 @@ const reportar = async (match, ganador) => {
           ) : (
             <div className="space-y-3 mt-4">
               {matches.map(m => (
-<MatchCard
-  key={m.id}
-  match={m}
-  onReport={reportar}
-  esAdmin={esAdmin}
-  userId={userId}
-/>
+                <MatchCard
+                  key={m.id}
+                  match={m}
+                  onReport={reportar}
+                  esAdmin={esAdmin}
+                  userId={userId}
+                />
               ))}
             </div>
           )}
         </>
-      )}
-
-      {/* ✅ MODAL CONFIRMAR */}
-      {confirmacion && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-
-          <div className="bg-white p-5 rounded-xl w-[90%] max-w-sm">
-
-            <p className="mb-4 text-center">
-              ¿Confirmar resultado?
-            </p>
-
-            <div className="flex gap-3">
-              <button
-                onClick={()=>setConfirmacion(null)}
-                className="flex-1 bg-gray-300 py-2 rounded"
-              >
-                Cancelar
-              </button>
-
-              <button
-                onClick={confirmarReporte}
-                className="flex-1 bg-green-600 text-white py-2 rounded"
-              >
-                Confirmar
-              </button>
-            </div>
-
-          </div>
-
-        </div>
       )}
 
     </div>
