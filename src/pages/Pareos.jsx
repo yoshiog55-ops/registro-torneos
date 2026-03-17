@@ -97,8 +97,12 @@ useEffect(() => {
     const ahora = new Date()
     const creada = new Date(ronda.created_at)
 
-    const inicio = new Date(creada.getTime() + 5 * 60000)
-    const fin = new Date(inicio.getTime() + 30 * 60000)
+    const inicio = new Date(creada.getTime().toLocaleString("es-MX", {
+  timeZone: "America/Mexico_City"
+}) + 5 * 60000)
+    const fin = new Date(inicio.getTime().toLocaleString("es-MX", {
+  timeZone: "America/Mexico_City"
+}) + 30 * 60000)
 
     if(ahora < inicio){
       // ⏳ Aún no empieza
