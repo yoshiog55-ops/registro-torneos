@@ -549,26 +549,38 @@ const formateado = data.map(m => {
 
           {rondaActual?.status === "activa" && (
             <div className="flex gap-2 mt-2">
-              <button
-                onClick={()=>reportarAdmin(m, m.jugador1_id)}
-                className="flex-1 bg-green-600 text-white py-1 rounded"
-              >
-                J1
-              </button>
+<button
+  onClick={()=>reportarAdmin(m, m.jugador1_id)}
+  className={`flex-1 py-1 rounded border-2 ${
+    m.ganador_reportado_1 === m.jugador1_id
+      ? "bg-green-600 text-white border-green-800"
+      : "bg-gray-200"
+  }`}
+>
+  J1
+</button>
 
-              <button
-                onClick={()=>reportarAdmin(m, m.jugador2_id)}
-                className="flex-1 bg-blue-600 text-white py-1 rounded"
-              >
-                J2
-              </button>
+<button
+  onClick={()=>reportarAdmin(m, m.jugador2_id)}
+  className={`flex-1 py-1 rounded border-2 ${
+    m.ganador_reportado_2 === m.jugador2_id
+      ? "bg-blue-600 text-white border-blue-800"
+      : "bg-gray-200"
+  }`}
+>
+  J2
+</button>
 
-              <button
-                onClick={()=>reportarAdmin(m, "empate")}
-                className="flex-1 bg-yellow-500 text-white py-1 rounded"
-              >
-                Empate
-              </button>
+<button
+  onClick={()=>reportarAdmin(m, "empate")}
+  className={`flex-1 py-1 rounded border-2 ${
+    m.empate
+      ? "bg-yellow-500 text-white border-yellow-700"
+      : "bg-gray-200"
+  }`}
+>
+  Empate
+</button>
             </div>
           )}
 
