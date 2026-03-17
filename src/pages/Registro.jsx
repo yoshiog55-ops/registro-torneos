@@ -99,6 +99,8 @@ telefono
 .select()
 .single()
 
+localStorage.setItem("player_id", player_id)
+
 if(error){
 
 setMensaje("Error registrando jugador")

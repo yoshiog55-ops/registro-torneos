@@ -35,6 +35,11 @@ Registrar jugador
 Admin
 </Link>
 
+{/* 🔥 NUEVO - JUGADORES */}
+<Link to="/pareos" className="hover:text-[#00B7C3]">
+Pareos
+</Link>
+
 </div>
 
 </div>

@@ -2,6 +2,7 @@ import { useState,useEffect } from "react"
 import { supabase } from "../supabase"
 import ConsultaJugadores from "../components/ConsultaJugadores"
 import TorneosAdmin from "../components/TorneosAdmin"
+import SubirTDF from "../components/SubirTDF"
 
 export default function Admin(){
 
@@ -179,34 +180,42 @@ cargarEstado()
 
 async function cargarJugadores(){
 
-if(!torneoSeleccionado) return
+  if(!torneoSeleccionado) return
 
-const today = new Date().toLocaleDateString("en-CA")
+  const today = new Date().toLocaleDateString("en-CA")
 
-const {data}=await supabase
-.from("inscripciones")
-.select(`
-id,
-pagado,
-late,
-copiado,
-  checkin,
-created_at,
-  torneos (
-    nombre
-  ),
-jugadores (
-player_id,
-nombre,
-anio_nacimiento
-)
-`)
-.eq("fecha",today)
-if(torneoSeleccionado !== "ALL"){
-  query = query.eq("torneo_id", torneoSeleccionado)
-}
-setJugadores(data || [])
+  let query = supabase
+    .from("inscripciones")
+    .select(`
+      id,
+      pagado,
+      late,
+      copiado,
+      checkin,
+      created_at,
+      torneos (
+        nombre
+      ),
+      jugadores (
+        player_id,
+        nombre,
+        anio_nacimiento
+      )
+    `)
+    .eq("fecha", today)
 
+  if(torneoSeleccionado !== "ALL"){
+    query = query.eq("torneo_id", torneoSeleccionado)
+  }
+
+  const { data, error } = await query
+
+  if(error){
+    console.log("ERROR cargarJugadores:", error)
+    return
+  }
+
+  setJugadores(data || [])
 }
 
 async function togglePago(j){
@@ -396,6 +405,13 @@ onClick={()=>setVista("torneos")}
 className="bg-purple-700 text-white px-4 py-2 rounded"
 >
 Torneos
+</button>
+
+<button
+onClick={()=>setVista("rondas")}
+className="bg-indigo-700 text-white px-4 py-2 rounded"
+>
+Rondas
 </button>
 
 </div>
@@ -682,6 +698,20 @@ Quitar
 {vista==="torneos" && (
 
 <TorneosAdmin volver={()=>setVista("torneo")} />
+
+)}
+
+{vista==="rondas" && (
+
+<div>
+
+<h2 className="text-xl font-bold mb-4">
+Gestión de rondas
+</h2>
+
+<SubirTDF torneo_id={torneoSeleccionado !== "ALL" ? torneoSeleccionado : torneos[0]?.id} />
+
+</div>
 
 )}
 

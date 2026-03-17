@@ -91,6 +91,8 @@ pagado: false
 
 })
 
+localStorage.setItem("player_id", player_id)
+
 if(error){
 
 setMensaje("Jugador ya inscrito hoy")

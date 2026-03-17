@@ -5,6 +5,7 @@ import Navbar from "./components/Navbar"
 import Home from "./pages/Home"
 import Registro from "./pages/Registro"
 import Admin from "./pages/Admin"
+import Pareos from "./pages/Pareos"
 
 function App(){
 
@@ -23,6 +24,8 @@ return(
 <Route path="/registro" element={<Registro />} />
 
 <Route path="/admin" element={<Admin />} />
+
+<Route path="/pareos" element={<Pareos />} />
 
 </Routes>
 
