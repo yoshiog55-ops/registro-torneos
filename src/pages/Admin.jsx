@@ -28,27 +28,38 @@ const [ordenDireccion,setOrdenDireccion]=useState("asc")
 
 useEffect(()=>{
 
-verificarSesion()
-cargarTorneos()
+  const savedVista = localStorage.getItem("admin_vista")
+  const savedTorneo = localStorage.getItem("admin_torneo")
 
-const channel = supabase
-.channel("inscripciones-realtime")
-.on(
-"postgres_changes",
-{
-event: "*",
-schema: "public",
-table: "inscripciones"
-},
-() => {
-cargarJugadores()
-}
-)
-.subscribe()
+  if(savedVista){
+    setVista(savedVista)
+  }
 
-return () => {
-supabase.removeChannel(channel)
-}
+  if(savedTorneo){
+    setTorneoSeleccionado(savedTorneo)
+  }
+
+  verificarSesion()
+  cargarTorneos()
+
+  const channel = supabase
+    .channel("inscripciones-realtime")
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "inscripciones"
+      },
+      () => {
+        cargarJugadores()
+      }
+    )
+    .subscribe()
+
+  return () => {
+    supabase.removeChannel(channel)
+  }
 
 },[])
 
@@ -269,6 +280,14 @@ telefono:nuevoTelefono
 cargarJugadoresDB()
 
 }
+
+useEffect(() => {
+  localStorage.setItem("admin_vista", vista)
+}, [vista])
+
+useEffect(() => {
+  localStorage.setItem("admin_torneo", torneoSeleccionado)
+}, [torneoSeleccionado])
 
 useEffect(()=>{
 
@@ -709,8 +728,13 @@ Quitar
 Gestión de rondas
 </h2>
 
-<SubirTDF torneo_id={torneoSeleccionado !== "ALL" ? torneoSeleccionado : torneos[0]?.id} />
-
+<SubirTDF
+  torneo_id={
+    torneoSeleccionado !== "ALL"
+      ? torneoSeleccionado
+      : torneos[0]?.id || ""
+  }
+/>
 </div>
 
 )}
