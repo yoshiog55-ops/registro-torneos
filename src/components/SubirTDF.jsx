@@ -18,7 +18,7 @@ export default function SubirTDF() {
   const [rondaSeleccionada, setRondaSeleccionada] = useState(null)
   const [stats, setStats] = useState(null)
   const [matchesDetalle, setMatchesDetalle] = useState([])
-
+const [matches, setMatches] = useState([]) // 🔥 NUEVO
   const [standingsPreview, setStandingsPreview] = useState([])
   const [standings, setStandings] = useState([])
 
@@ -52,11 +52,11 @@ export default function SubirTDF() {
     }
   }, [torneoSeleccionado])
 
-  useEffect(() => {
-    if(rondaSeleccionada){
-      cargarStats()
-    }
-  }, [rondaSeleccionada])
+useEffect(() => {
+  if(rondaSeleccionada){
+    cargarStats()
+  }
+}, [rondaSeleccionada])
 
   // =========================
   // 📊 RONDAS
@@ -95,7 +95,7 @@ const cargarRondas = async () => {
       setStats(null)
       return
     }
-
+setMatches(data)
     const total = data.length
     const confirmados = data.filter(m => m.confirmado).length
     const pendientes = data.filter(m => !m.confirmado)
@@ -195,102 +195,63 @@ if(activa && activa.length > 0){
   // =========================
   // 📤 SUBIR
   // =========================
-  const handleUpload = async () => {
+const handleUpload = async () => {
 
-    if(!torneoSeleccionado) return
+  if(!torneoSeleccionado) return
 
-    if(!confirm("¿Confirmar subida?")) return
+  try{
+    setLoading(true)
 
-    try{
-      setLoading(true)
+    const tieneStandings = standingsPreview.length > 0
 
-      const esSoloStandings = standingsPreview.length > 0 && !preview
+    // 🏆 SI HAY STANDINGS → SOLO GUARDAR ESO
+    if(tieneStandings){
 
-      // 🏆 SOLO STANDINGS
-      if(esSoloStandings){
+      await supabase
+        .from("standings")
+        .delete()
+        .eq("torneo_id", torneoSeleccionado)
 
-        await supabase
-          .from("standings")
-          .delete()
-          .eq("torneo_id", torneoSeleccionado)
+      await supabase
+        .from("standings")
+        .insert(
+          standingsPreview.map(s => ({
+            torneo_id: torneoSeleccionado,
+            player_id: s.player_id,
+            posicion: s.posicion
+          }))
+        )
 
-        await supabase
-          .from("standings")
-          .insert(
-            standingsPreview.map(s => ({
-              torneo_id: torneoSeleccionado,
-              player_id: s.player_id,
-              posicion: s.posicion
-            }))
-          )
-
-        setMensaje("🏆 Standings finales publicados")
-
-        setPreview(null)
-        setFile(null)
-        setStandingsPreview([])
-
-        await cargarRondas()
-        await cargarStandings()
-
-        return
-      }
-
-      // 🎮 RONDA NORMAL
-      if(preview){
-        await guardarRonda(torneoSeleccionado, preview)
-      }
-
-// 🔥 SI TRAE STANDINGS → NO CREAR RONDA
-if(standingsPreview.length > 0){
-
-  const confirmar = confirm("¿Publicar standings finales?")
-  if(!confirmar) return
-
-  // 🧹 borrar standings previos
-  await supabase
-    .from("standings")
-    .delete()
-    .eq("torneo_id", torneoSeleccionado)
-
-  // 💾 insertar standings
-  await supabase
-    .from("standings")
-    .insert(
-      standingsPreview.map(s => ({
-        torneo_id: torneoSeleccionado,
-        player_id: s.player_id,
-        posicion: s.posicion
-      }))
-    )
-
-  setMensaje("🏆 Standings finales publicados")
-
-  // 🔥 FORZAR MODO FINAL
-  setRondaSeleccionada(null)
-  await cargarStandings()
-
-  return // ⛔ IMPORTANTE: NO guarda ronda
-}
-
-// 👉 SOLO si NO hay standings
-setMensaje("✅ Ronda guardada correctamente")
-
-      setMensaje("✅ Ronda guardada correctamente")
+      setMensaje("🏆 Standings finales publicados")
 
       setPreview(null)
       setFile(null)
-      setPuedeReemplazar(false)
       setStandingsPreview([])
 
       await cargarRondas()
+      await cargarStandings()
 
-    }catch(err){
-      setMensaje("❌ " + err.message)
+      return // 🔥 IMPORTANTE: cortar ejecución
     }
 
-    setLoading(false)
+    // 🎮 SOLO SI NO HAY STANDINGS
+    if(preview){
+      await guardarRonda(torneoSeleccionado, preview)
+      setMensaje("✅ Ronda guardada correctamente")
+    }
+
+    setPreview(null)
+    setFile(null)
+    setPuedeReemplazar(false)
+
+    await cargarRondas()
+
+  }catch(err){
+    setMensaje("❌ " + err.message)
   }
+
+  setLoading(false)
+}
 
   // =========================
   // 🔒 FINALIZAR RONDA
@@ -365,16 +326,38 @@ setMensaje("✅ Ronda finalizada")
   // =========================
   // 🏆 STANDINGS
   // =========================
-  const cargarStandings = async () => {
+const cargarStandings = async () => {
 
-    const { data } = await supabase
-      .from("standings")
-      .select("*")
-      .eq("torneo_id", torneoSeleccionado)
-      .order("posicion", { ascending: true })
+  const { data } = await supabase
+    .from("standings")
+    .select("*")
+    .eq("torneo_id", torneoSeleccionado)
+    .order("posicion", { ascending: true })
 
-    setStandings(data || [])
+  if(!data){
+    setStandings([])
+    return
   }
+
+  const ids = data.map(s => s.player_id)
+
+  const { data: jugadores } = await supabase
+    .from("jugadores")
+    .select("player_id, nombre")
+    .in("player_id", ids)
+
+  const mapa = {}
+  jugadores?.forEach(j => {
+    mapa[j.player_id] = j.nombre
+  })
+
+  const formateado = data.map(s => ({
+    ...s,
+    nombre: mapa[s.player_id] || s.player_id
+  }))
+
+  setStandings(formateado)
+}
 
   const rondaActual = rondas.find(r => r.id === rondaSeleccionada)
 
@@ -467,29 +450,53 @@ setMensaje("✅ Ronda finalizada")
 )}
             </div>
           )}
+{(matches || []).length > 0 && (
+  <div className="mt-4 space-y-2">
 
-          {matchesDetalle.length > 0 && (
-            <div className="mt-4 space-y-2">
+    <p className="font-bold">Matches</p>
 
-              <p className="font-bold">Pendientes</p>
+    {(matches || []).map(m => (
+      <div key={m.id} className="bg-white p-2 rounded shadow">
 
-              {matchesDetalle.map(m => (
-                <div key={m.id} className="bg-white p-2 rounded shadow">
+        <p>Mesa {m.mesa}</p>
+        <p>{m.jugador1_id} vs {m.jugador2_id}</p>
 
-                  <p>Mesa {m.mesa}</p>
-                  <p>{m.j1_nombre} vs {m.j2_nombre}</p>
+        {rondaActual?.status === "activa" && (
+          <div className="flex gap-2 mt-2">
+            <button
+              onClick={()=>reportarAdmin(m, m.jugador1_id)}
+              className="flex-1 bg-green-600 text-white py-1 rounded"
+            >
+              J1
+            </button>
 
-                  <div className="flex gap-2 mt-2">
-                    <button onClick={()=>reportarAdmin(m, m.jugador1_id)} className="flex-1 bg-green-600 text-white py-1 rounded">J1</button>
-                    <button onClick={()=>reportarAdmin(m, m.jugador2_id)} className="flex-1 bg-blue-600 text-white py-1 rounded">J2</button>
-                    <button onClick={()=>reportarAdmin(m, "empate")} className="flex-1 bg-yellow-500 text-white py-1 rounded">Empate</button>
-                  </div>
+            <button
+              onClick={()=>reportarAdmin(m, m.jugador2_id)}
+              className="flex-1 bg-blue-600 text-white py-1 rounded"
+            >
+              J2
+            </button>
 
-                </div>
-              ))}
+            <button
+              onClick={()=>reportarAdmin(m, "empate")}
+              className="flex-1 bg-yellow-500 text-white py-1 rounded"
+            >
+              Empate
+            </button>
+          </div>
+        )}
 
-            </div>
-          )}
+        {rondaActual?.status === "finalizada" && (
+          <p className="text-center text-xs text-gray-500 mt-2">
+            🔒 Ronda finalizada (solo lectura)
+          </p>
+        )}
+
+      </div>
+    ))}
+
+  </div>
+)}
 
         </div>
       )}

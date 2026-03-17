@@ -77,7 +77,7 @@ const yaReporte =
 
   {/* ================= JUGADOR 1 ================= */}
   <button
-    disabled={match.confirmado}
+    disabled={yaReporte || match.confirmado || match.status === "finalizada"}
     onClick={() => onReport(match, match.jugador1_id)}
     className={`flex-1 py-2 rounded border-2 transition font-semibold ${
       
@@ -103,7 +103,7 @@ const yaReporte =
 
   {/* ================= JUGADOR 2 ================= */}
   <button
-    disabled={match.confirmado}
+   disabled={yaReporte || match.confirmado || match.status === "finalizada"}
     onClick={() => onReport(match, match.jugador2_id)}
     className={`flex-1 py-2 rounded border-2 transition font-semibold ${
       
@@ -131,7 +131,7 @@ const yaReporte =
 
 {/* ================= EMPATE ================= */}
 <button
-  disabled={match.confirmado}
+ disabled={yaReporte || match.confirmado || match.status === "finalizada"}
   onClick={() => onReport(match, "empate")}
   className={`w-full py-2 rounded border-2 mt-2 transition font-semibold ${
     
