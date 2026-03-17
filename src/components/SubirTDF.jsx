@@ -552,7 +552,8 @@ const formateado = data.map(m => {
 <button
   onClick={()=>reportarAdmin(m, m.jugador1_id)}
   className={`flex-1 py-1 rounded border-2 ${
-    m.ganador_reportado_1 === m.jugador1_id
+    m.ganador_reportado_1 === m.jugador1_id ||
+    m.ganador_reportado_2 === m.jugador1_id
       ? "bg-green-600 text-white border-green-800"
       : "bg-gray-200"
   }`}
@@ -563,6 +564,7 @@ const formateado = data.map(m => {
 <button
   onClick={()=>reportarAdmin(m, m.jugador2_id)}
   className={`flex-1 py-1 rounded border-2 ${
+    m.ganador_reportado_1 === m.jugador2_id ||
     m.ganador_reportado_2 === m.jugador2_id
       ? "bg-blue-600 text-white border-blue-800"
       : "bg-gray-200"
