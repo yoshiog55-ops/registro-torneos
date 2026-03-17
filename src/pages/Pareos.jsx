@@ -86,13 +86,6 @@ useEffect(() => {
 }, [])
 
 useEffect(() => {
-
-  if(!rondaSeleccionada) return
-
-  const ronda = rondas.find(r => r.id === rondaSeleccionada)
-  if(!ronda) return
-
-useEffect(() => {
   if(rondaSeleccionada && modo === "rondas"){
     localStorage.setItem("ronda_id", rondaSeleccionada)
     cargarMatches()

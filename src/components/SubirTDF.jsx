@@ -501,88 +501,90 @@ const formateado = data.map(m => {
 )}
             </div>
           )}
+
 {(matches || []).length > 0 && (
   <div className="mt-4 space-y-2">
 
     <p className="font-bold">Matches</p>
 
-{(matches || []).map(m => {
+    {(matches || []).map(m => {
 
-  const r1 = m.ganador_reportado_1
-  const r2 = m.ganador_reportado_2
+      const r1 = m.ganador_reportado_1
+      const r2 = m.ganador_reportado_2
 
-  let estado = "pendiente"
+      let estado = "pendiente"
 
-  if(m.confirmado){
-    estado = "confirmado"
-  }else if(r1 && r2 && r1 !== r2){
-    estado = "conflicto"
-  }else if(r1 || r2){
-    estado = "esperando"
-  }
+      if(m.confirmado){
+        estado = "confirmado"
+      }else if(r1 && r2 && r1 !== r2){
+        estado = "conflicto"
+      }else if(r1 || r2){
+        estado = "esperando"
+      }
 
-  const colorEstado = {
-    pendiente: "bg-gray-100",
-    esperando: "bg-yellow-100",
-    conflicto: "bg-red-100",
-    confirmado: "bg-green-100"
-  }[estado]
+      const colorEstado = {
+        pendiente: "bg-gray-100",
+        esperando: "bg-yellow-100",
+        conflicto: "bg-red-100",
+        confirmado: "bg-green-100"
+      }[estado]
 
-  return (
-    <div key={m.id} className={`${colorEstado} p-2 rounded shadow`}>
+      return (
+        <div key={m.id} className={`${colorEstado} p-2 rounded shadow`}>
 
-      <p>Mesa {m.mesa}</p>
-      <p>{m.jugador1_id} vs {m.jugador2_id}</p>
+          <p>Mesa {m.mesa}</p>
+          <p>{m.jugador1_id} vs {m.jugador2_id}</p>
 
-      <div className="text-xs mb-1">
-        {r1 && <span className="text-blue-600 mr-2">J1 reportó</span>}
-        {r2 && <span className="text-purple-600">J2 reportó</span>}
-      </div>
+          <div className="text-xs mb-1">
+            {r1 && <span className="text-blue-600 mr-2">J1 reportó</span>}
+            {r2 && <span className="text-purple-600">J2 reportó</span>}
+          </div>
 
-      <div className="text-xs mb-2">
-        {estado === "pendiente" && "⏳ Sin reportes"}
-        {estado === "esperando" && "🟡 Falta confirmación"}
-        {estado === "conflicto" && "🔴 Conflicto"}
-        {estado === "confirmado" && "✅ Confirmado"}
-      </div>
+          <div className="text-xs mb-2">
+            {estado === "pendiente" && "⏳ Sin reportes"}
+            {estado === "esperando" && "🟡 Falta confirmación"}
+            {estado === "conflicto" && "🔴 Conflicto"}
+            {estado === "confirmado" && "✅ Confirmado"}
+          </div>
 
-      {rondaActual?.status === "activa" && (
-        <div className="flex gap-2 mt-2">
-          <button
-            onClick={()=>reportarAdmin(m, m.jugador1_id)}
-            className="flex-1 bg-green-600 text-white py-1 rounded"
-          >
-            J1
-          </button>
+          {rondaActual?.status === "activa" && (
+            <div className="flex gap-2 mt-2">
+              <button
+                onClick={()=>reportarAdmin(m, m.jugador1_id)}
+                className="flex-1 bg-green-600 text-white py-1 rounded"
+              >
+                J1
+              </button>
 
-          <button
-            onClick={()=>reportarAdmin(m, m.jugador2_id)}
-            className="flex-1 bg-blue-600 text-white py-1 rounded"
-          >
-            J2
-          </button>
+              <button
+                onClick={()=>reportarAdmin(m, m.jugador2_id)}
+                className="flex-1 bg-blue-600 text-white py-1 rounded"
+              >
+                J2
+              </button>
 
-          <button
-            onClick={()=>reportarAdmin(m, "empate")}
-            className="flex-1 bg-yellow-500 text-white py-1 rounded"
-          >
-            Empate
-          </button>
-        </div>
-      )}
+              <button
+                onClick={()=>reportarAdmin(m, "empate")}
+                className="flex-1 bg-yellow-500 text-white py-1 rounded"
+              >
+                Empate
+              </button>
+            </div>
+          )}
 
-      {rondaActual?.status === "finalizada" && (
-        <p className="text-center text-xs text-gray-500 mt-2">
-          🔒 Ronda finalizada (solo lectura)
-        </p>
-      )}
-
-    </div>
-  )
-})}
+          {rondaActual?.status === "finalizada" && (
+            <p className="text-center text-xs text-gray-500 mt-2">
+              🔒 Ronda finalizada (solo lectura)
+            </p>
+          )}
 
         </div>
-      )}
+      )
+    })}
+
+  </div>
+)}    </div>
+  )}
 
       {/* STANDINGS */}
       {rondas.every(r => r.status === "finalizada") && standings.length > 0 && (
