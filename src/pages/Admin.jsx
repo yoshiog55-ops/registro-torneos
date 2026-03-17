@@ -17,7 +17,10 @@ const [vista,setVista]=useState("torneo")
 const [busqueda,setBusqueda]=useState("")
 const [estado,setEstado]=useState(null)
 const [torneos,setTorneos] = useState([])
-const [torneoSeleccionado,setTorneoSeleccionado] = useState(null)
+const [torneoSeleccionado,setTorneoSeleccionado] = useState("ALL")
+
+const [mostrarConfirmacion, setMostrarConfirmacion] = useState(false)
+const [jugadorAEliminar, setJugadorAEliminar] = useState(null)
 
 const [ordenCampo,setOrdenCampo]=useState("created_at")
 const [ordenDireccion,setOrdenDireccion]=useState("asc")
@@ -59,8 +62,8 @@ if(data){
 
 setTorneos(data)
 
-if(data.length >= 1){
-setTorneoSeleccionado(data[0].id)
+if(data){
+  setTorneos(data)
 }
 }
 }
@@ -88,22 +91,34 @@ setOrdenDireccion("asc")
 
 }
 
-async function quitarInscripcion(j){
+async function quitarInscripcion(){
 
-const confirmar = confirm(`¿Quitar a ${j.jugadores.nombre} del torneo?`)
-if(!confirmar) return
+if(!jugadorAEliminar) return
 
 const {error} = await supabase
 .from("inscripciones")
 .delete()
-.eq("id", j.id)
+.eq("id", jugadorAEliminar.id)
 
 if(error){
 setMensaje("Error al quitar jugador")
 return
 }
 
+setMostrarConfirmacion(false)
+setJugadorAEliminar(null)
 cargarJugadores()
+
+}
+
+async function toggleCheckin(j){
+
+  await supabase
+  .from("inscripciones")
+  .update({checkin: !j.checkin})
+  .eq("id", j.id)
+
+  cargarJugadores()
 
 }
 
@@ -175,7 +190,11 @@ id,
 pagado,
 late,
 copiado,
+  checkin,
 created_at,
+  torneos (
+    nombre
+  ),
 jugadores (
 player_id,
 nombre,
@@ -183,8 +202,9 @@ anio_nacimiento
 )
 `)
 .eq("fecha",today)
-.eq("torneo_id",torneoSeleccionado)
-
+if(torneoSeleccionado !== "ALL"){
+  query = query.eq("torneo_id", torneoSeleccionado)
+}
 setJugadores(data || [])
 
 }
@@ -426,14 +446,16 @@ Torneo:
 
 <select
 className="border p-2 rounded"
-value={torneoSeleccionado || ""}
+value={torneoSeleccionado}
 onChange={(e)=>setTorneoSeleccionado(e.target.value)}
 >
 
+<option value="ALL">Todos los torneos</option>
+
 {torneos.map(t=>(
-<option key={t.id} value={t.id}>
-{t.nombre}
-</option>
+  <option key={t.id} value={t.id}>
+    {t.nombre}
+  </option>
 ))}
 
 </select>
@@ -504,7 +526,11 @@ Año
 Fecha inscripción
 </th>
 
+<th className="p-3">Torneo</th>
+
 <th className="p-3">Pago</th>
+
+<th className="p-3">Check-in</th>
 
 <th className="p-3">Estado</th>
 
@@ -532,9 +558,12 @@ Fecha inscripción
 
 <td className="p-3 text-center text-xs">
 {new Date(j.created_at).toLocaleString("es-MX", {
-timeZone: "America/Mexico_City",
-hour12: false
+  timeZone: "America/Mexico_City"
 })}
+</td>
+
+<td className="p-3 text-center">
+  {j.torneos?.nombre || "-"}
 </td>
 
 <td className="p-3 text-center">
@@ -547,6 +576,21 @@ j.pagado ? "bg-green-600" : "bg-red-600"
 >
 
 {j.pagado ? "Pagado" : "No pagó"}
+
+</button>
+
+</td>
+
+<td className="p-3 text-center">
+
+<button
+onClick={()=>toggleCheckin(j)}
+className={`px-3 py-1 rounded text-white ${
+  j.checkin ? "bg-green-600" : "bg-gray-400"
+}`}
+>
+
+{j.checkin ? "Presente" : "Pendiente"}
 
 </button>
 
@@ -604,7 +648,10 @@ j.copiado ? "bg-green-600" : "bg-gray-400"
 <td className="p-3 text-center">
 
 <button
-onClick={()=>quitarInscripcion(j)}
+onClick={()=>{
+  setJugadorAEliminar(j)
+  setMostrarConfirmacion(true)
+}}
 className="bg-red-600 text-white px-3 py-1 rounded"
 >
 Quitar
@@ -636,6 +683,41 @@ Quitar
 
 <TorneosAdmin volver={()=>setVista("torneo")} />
 
+)}
+
+{mostrarConfirmacion && jugadorAEliminar && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+
+    <div className="bg-white p-6 rounded-xl shadow-xl max-w-sm w-full text-center">
+
+      <p className="mb-4 font-bold">
+        ¿Quitar a {jugadorAEliminar.jugadores.nombre} del torneo?
+      </p>
+
+      <div className="flex gap-3 justify-center">
+
+        <button
+          onClick={()=>{
+            setMostrarConfirmacion(false)
+            setJugadorAEliminar(null)
+          }}
+          className="bg-gray-300 px-4 py-2 rounded"
+        >
+          Cancelar
+        </button>
+
+        <button
+          onClick={quitarInscripcion}
+          className="bg-red-600 text-white px-4 py-2 rounded"
+        >
+          Confirmar
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
 )}
 
 </div>

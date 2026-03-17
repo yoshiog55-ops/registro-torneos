@@ -12,6 +12,7 @@ const [editando,setEditando]=useState(null)
 const [nombre,setNombre]=useState("")
 const [anio,setAnio]=useState("")
 const [telefono,setTelefono]=useState("")
+const [playerId,setPlayerId]=useState("")
 
 useEffect(()=>{
 cargarJugadores()
@@ -69,6 +70,7 @@ function abrirEditar(j){
 
 setEditando(j)
 setNombre(j.nombre)
+setPlayerId(j.player_id)
 setAnio(j.anio_nacimiento)
 setTelefono(j.telefono)
 
@@ -76,10 +78,16 @@ setTelefono(j.telefono)
 
 async function guardarCambios(){
 
+    if(!/^[0-9]+$/.test(playerId)){
+  setMensaje("Player ID solo debe contener números")
+  return
+}
+
 await supabase
 .from("jugadores")
 .update({
 nombre,
+player_id: playerId,
 anio_nacimiento:anio,
 telefono
 })
@@ -205,6 +213,13 @@ Editar
 <h2 className="text-xl font-bold mb-4">
 Editar jugador
 </h2>
+
+<input
+className="border p-3 w-full mb-3 rounded"
+value={playerId}
+onChange={(e)=>setPlayerId(e.target.value.replace(/\D/g,''))}
+placeholder="Player ID"
+/>
 
 <input
 className="border p-3 w-full mb-3 rounded"

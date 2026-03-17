@@ -84,7 +84,7 @@ const {error} = await supabase
 .insert({
 
 jugador_id: jugador.id,
-torneo_id: torneoSeleccionado,
+torneo_id: torneoSeleccionado || torneos[0]?.id,
 late: late,
 fecha: new Date().toLocaleDateString("en-CA"),
 pagado: false
