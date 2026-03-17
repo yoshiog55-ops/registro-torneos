@@ -16,9 +16,8 @@ export default function Pareos() {
   const [inputId, setInputId] = useState("")
   const [esAdmin, setEsAdmin] = useState(false)
 
-  const [confirmacion, setConfirmacion] = useState(null)
   const [mensaje, setMensaje] = useState("")
-
+  const [tiempoRestante, setTiempoRestante] = useState(null)
   const [modo, setModo] = useState("rondas")
 
   // =========================
@@ -62,6 +61,69 @@ export default function Pareos() {
       await cargarStandings()
     }
   }
+
+useEffect(() => {
+
+  const channel = supabase
+    .channel('rondas-changes')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'rondas'
+      },
+      async () => {
+        await cargarRondas() // 🔥 recarga todo automáticamente
+      }
+    )
+    .subscribe()
+
+  return () => {
+    supabase.removeChannel(channel)
+  }
+
+}, [])
+
+useEffect(() => {
+
+  if(!rondaSeleccionada) return
+
+  const ronda = rondas.find(r => r.id === rondaSeleccionada)
+  if(!ronda) return
+
+  const intervalo = setInterval(() => {
+
+    const ahora = new Date()
+    const creada = new Date(ronda.created_at)
+
+    const inicio = new Date(creada.getTime() + 5 * 60000)
+    const fin = new Date(inicio.getTime() + 30 * 60000)
+
+    if(ahora < inicio){
+      // ⏳ Aún no empieza
+      const diff = Math.floor((inicio - ahora) / 1000)
+      setTiempoRestante(`Empieza en ${diff}s`)
+    }
+    else if(ahora >= inicio && ahora <= fin){
+      // ▶️ En curso
+      const diff = Math.floor((fin - ahora) / 1000)
+
+      const min = Math.floor(diff / 60)
+      const sec = diff % 60
+
+      setTiempoRestante(`${min}:${sec.toString().padStart(2, "0")}`)
+    }
+    else{
+      // ⛔ Terminó
+      setTiempoRestante("⛔ Tiempo finalizado")
+    }
+
+  }, 1000)
+
+  return () => clearInterval(intervalo)
+
+}, [rondas, rondaSeleccionada])
 
   useEffect(() => {
     if(rondaSeleccionada && modo === "rondas"){
@@ -393,7 +455,11 @@ useEffect(() => {
 
   return (
     <div className="max-w-3xl mx-auto p-4">
-
+{modo === "rondas" && tiempoRestante && (
+  <div className="bg-black text-white text-center py-2 rounded mb-3">
+    ⏱️ {tiempoRestante}
+  </div>
+)}
       <h2 className="text-xl font-bold mb-4">📊 Pareos</h2>
 
       {/* 🔄 REFRESH */}
