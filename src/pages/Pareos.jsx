@@ -559,7 +559,7 @@ useEffect(() => {
       )}
 
       {/* 🏆 STANDINGS */}
-      {modo === "standings" && (
+      {standings.length > 0 && (
         <div className="bg-white p-4 rounded shadow">
 
           <h3 className="font-bold mb-3">🏆 Standings</h3>
