@@ -131,7 +131,13 @@ const { data } = await supabase
       setStats(null)
       return
     }
-setMatches(data)
+const formateados = data.map(m => ({
+  ...m,
+  j1_nombre: mapa[m.jugador1_id] || m.jugador1_id,
+  j2_nombre: mapa[m.jugador2_id] || m.jugador2_id
+}))
+
+setMatches(formateados)
     const total = data.length
     const confirmados = data.filter(m => m.confirmado).length
     const pendientes = data.filter(m => !m.confirmado)
@@ -546,7 +552,11 @@ const formateado = data.map(m => {
         <div key={m.id} className={`${colorEstado} p-2 rounded shadow`}>
 
           <p>Mesa {m.mesa}</p>
-          <p>{m.jugador1_id} vs {m.jugador2_id}</p>
+          <p className="font-semibold">
+  {m.j1_nombre} ({m.jugador1_id}) 
+  {" vs "} 
+  {m.j2_nombre} ({m.jugador2_id})
+</p>
 
           <div className="text-xs mb-1">
             {r1 && <span className="text-blue-600 mr-2">J1 reportó</span>}
@@ -559,6 +569,17 @@ const formateado = data.map(m => {
             {estado === "conflicto" && "🔴 Conflicto"}
             {estado === "confirmado" && "✅ Confirmado"}
           </div>
+
+          {m.confirmado && (
+  <p className="text-sm font-bold mt-1">
+    {m.empate
+      ? "🤝 Empate"
+      : m.ganador_final === m.jugador1_id
+        ? `🏆 Ganó: ${m.j1_nombre}`
+        : `🏆 Ganó: ${m.j2_nombre}`
+    }
+  </p>
+)}
 
           {rondaActual?.status === "activa" && (
             <div className="flex gap-2 mt-2">
