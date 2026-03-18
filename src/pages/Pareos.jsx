@@ -92,28 +92,12 @@ useEffect(() => {
 
 }, [eventoActual])
 
+
 useEffect(() => {
-
-  const channel = supabase
-    .channel('rondas-changes')
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'rondas'
-      },
-      async () => {
-        await cargarRondas() // 🔥 recarga todo automáticamente
-      }
-    )
-    .subscribe()
-
-  return () => {
-    supabase.removeChannel(channel)
+  if(rondaSeleccionada){
+    localStorage.setItem("ronda_id", rondaSeleccionada)
   }
-
-}, [])
+}, [rondaSeleccionada])
 
 useEffect(() => {
 
@@ -121,11 +105,9 @@ useEffect(() => {
   if(!rondaSeleccionada) return
   if(modo !== "rondas") return
 
-  localStorage.setItem("ronda_id", rondaSeleccionada)
-
   cargarMatches()
 
-}, [rondaSeleccionada, modo, eventoActual])
+}, [rondaSeleccionada, eventoActual, modo])
 
   // =========================
   // 📊 RONDAS
@@ -142,10 +124,16 @@ if(!eventoActual) return
 
   const activa = data?.find(r => r.status === "activa")
 
-  if(activa){
-    setModo("rondas")
-    setRondaSeleccionada(activa.id)
-  }else{
+ if(activa){
+  setModo("rondas")
+
+  setRondaSeleccionada(prev => {
+    if(prev !== activa.id){
+      return activa.id
+    }
+    return prev
+  })
+}else{
 
     // 🔥 validar si hay standings reales
     const { data: standingsData } = await supabase
@@ -313,9 +301,13 @@ useEffect(() => {
         filter: `evento_id=eq.${eventoActual.id}`
       },
       async () => {
-        if(modo === "rondas"){
-          await cargarMatches()
-        }
+await cargarRondas()
+
+setTimeout(() => {
+  if(modo === "rondas"){
+    cargarMatches()
+  }
+}, 300)
       }
     )
     .subscribe()
