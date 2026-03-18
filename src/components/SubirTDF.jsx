@@ -79,7 +79,6 @@ useEffect(() => {
         event: '*',
         schema: 'public',
         table: 'matches',
-        filter: `ronda_id=eq.${rondaSeleccionada}`,
         filter: `evento_id=eq.${eventoActual.id}`
       },
       async () => {
@@ -119,57 +118,62 @@ if(!eventoActual) return
   // =========================
   // 📊 STATS
   // =========================
-  const cargarStats = async () => {
-    if(!eventoActual) return
-const { data } = await supabase
-  .from("matches")
-  .select("*")
-  .eq("ronda_id", rondaSeleccionada)
-  .order("mesa", { ascending: true })
+const cargarStats = async () => {
+  if(!eventoActual) return
 
-    if(!data){
-      setStats(null)
-      return
-    }
-const formateados = data.map(m => ({
-  ...m,
-  j1_nombre: mapa[m.jugador1_id] || m.jugador1_id,
-  j2_nombre: mapa[m.jugador2_id] || m.jugador2_id
-}))
+  const { data } = await supabase
+    .from("matches")
+    .select("*")
+    .eq("ronda_id", rondaSeleccionada)
+    .order("mesa", { ascending: true })
 
-setMatches(formateados)
-    const total = data.length
-    const confirmados = data.filter(m => m.confirmado).length
-    const pendientes = data.filter(m => !m.confirmado)
-
-    const ids = [
-      ...new Set(data.flatMap(m => [m.jugador1_id, m.jugador2_id]))
-    ]
-
-    const { data: jugadores } = await supabase
-      .from("jugadores")
-      .select("player_id, nombre")
-      .in("player_id", ids)
-
-    const mapa = {}
-    jugadores?.forEach(j => {
-      mapa[j.player_id] = j.nombre
-    })
-
-    const detalle = pendientes.map(m => ({
-      ...m,
-      j1_nombre: mapa[m.jugador1_id] || m.jugador1_id,
-      j2_nombre: mapa[m.jugador2_id] || m.jugador2_id
-    }))
-
-    setMatchesDetalle(detalle)
-
-    setStats({
-      total,
-      confirmados,
-      pendientes: total - confirmados
-    })
+  if(!data){
+    setStats(null)
+    return
   }
+
+  const total = data.length
+  const confirmados = data.filter(m => m.confirmado).length
+  const pendientes = data.filter(m => !m.confirmado)
+
+  const ids = [
+    ...new Set(data.flatMap(m => [m.jugador1_id, m.jugador2_id]))
+  ]
+
+  const { data: jugadores } = await supabase
+    .from("jugadores")
+    .select("player_id, nombre")
+    .in("player_id", ids)
+
+  // ✅ PRIMERO crear mapa
+  const mapa = {}
+  ;(jugadores || []).forEach(j => {
+    mapa[j.player_id] = j.nombre
+  })
+
+  // ✅ DESPUÉS mapear matches
+  const formateados = (data || []).map(m => ({
+    ...m,
+    j1_nombre: mapa[m.jugador1_id] || m.jugador1_id,
+    j2_nombre: mapa[m.jugador2_id] || m.jugador2_id
+  }))
+
+  setMatches(formateados)
+
+  const detalle = pendientes.map(m => ({
+    ...m,
+    j1_nombre: mapa[m.jugador1_id] || m.jugador1_id,
+    j2_nombre: mapa[m.jugador2_id] || m.jugador2_id
+  }))
+
+  setMatchesDetalle(detalle)
+
+  setStats({
+    total,
+    confirmados,
+    pendientes: total - confirmados
+  })
+}
 
   // =========================
   // 📤 SUBIR ARCHIVO
