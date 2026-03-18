@@ -135,19 +135,30 @@ if(!eventoActual) return
   })
 }else{
 
-    // 🔥 validar si hay standings reales
-    const { data: standingsData } = await supabase
-      .from("standings")
-      .select("id")
-      .limit(1)
+  // 🔥 siempre mantener rondas visibles
+  setModo("rondas")
 
-    if(standingsData && standingsData.length > 0){
-      setModo("standings")
-      cargarStandings()
-    }else{
-      setModo("sin_datos") // 🔥 NUEVO MODO
-    }
+  // 🔥 seleccionar última ronda jugada
+  if(data && data.length > 0){
+    setRondaSeleccionada(prev => {
+      if(prev !== data[0].id){
+        return data[0].id
+      }
+      return prev
+    })
   }
+
+  // 🔥 cargar standings si existen
+  const { data: standingsData } = await supabase
+    .from("standings")
+    .select("id")
+    .eq("evento_id", eventoActual.id) // 🔥 IMPORTANTE
+    .limit(1)
+
+  if(standingsData && standingsData.length > 0){
+    await cargarStandings()
+  }
+}
 }
 
   // =========================
@@ -320,6 +331,8 @@ setTimeout(() => {
 
 useEffect(() => {
 
+  if(!eventoActual) return
+
   const channel = supabase
     .channel('standings-changes')
     .on(
@@ -327,10 +340,12 @@ useEffect(() => {
       {
         event: '*',
         schema: 'public',
-        table: 'standings'
+        table: 'standings',
+        filter: `evento_id=eq.${eventoActual.id}` // 🔥 CLAVE
       },
-      () => {
-        cargarStandings()
+      async () => {
+        console.log("🏆 Cambio en standings")
+        await cargarStandings()
       }
     )
     .subscribe()
@@ -339,7 +354,7 @@ useEffect(() => {
     supabase.removeChannel(channel)
   }
 
-}, [])
+}, [eventoActual])
 
 useEffect(() => {
 
