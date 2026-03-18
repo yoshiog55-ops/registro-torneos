@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { supabase } from "../supabase"
 import SubirTDF from "../components/SubirTDF"
-
+import { obtenerEventoActual } from "../utils/evento"
 export default function AdminRondas() {
 
   const [torneos, setTorneos] = useState([])
@@ -9,16 +9,23 @@ export default function AdminRondas() {
   const [rondas, setRondas] = useState([])
   const [rondaSeleccionada, setRondaSeleccionada] = useState(null)
   const [stats, setStats] = useState(null)
-
+const [eventoActual, setEventoActual] = useState(null)
   useEffect(() => {
     cargarTorneos()
   }, [])
 
-  useEffect(() => {
-    if(torneoSeleccionado){
-      cargarRondas()
-    }
-  }, [torneoSeleccionado])
+useEffect(() => {
+
+  if(!torneoSeleccionado) return
+
+  async function initEvento(){
+    const evento = await obtenerEventoActual(torneoSeleccionado)
+    setEventoActual(evento)
+  }
+
+  initEvento()
+
+}, [torneoSeleccionado])
 
   useEffect(() => {
     if(rondaSeleccionada){
@@ -38,11 +45,11 @@ export default function AdminRondas() {
 
   // 📊 RONDAS
   const cargarRondas = async () => {
-
+if(!eventoActual) return
     const { data } = await supabase
       .from("rondas")
       .select("*")
-      .eq("torneo_id", torneoSeleccionado)
+      .eq("evento_id", eventoActual?.id)
       .order("numero_ronda", { ascending: false })
 
     setRondas(data || [])
@@ -60,6 +67,7 @@ export default function AdminRondas() {
       .from("matches")
       .select("*")
       .eq("ronda_id", rondaSeleccionada)
+      .eq("evento_id", eventoActual.id)
 
     if(!data){
       setStats(null)
@@ -83,7 +91,7 @@ const finalizarRonda = async () => {
     .from("matches")
     .select("*")
     .eq("ronda_id", rondaSeleccionada)
-
+.eq("evento_id", eventoActual.id)
   if(!matches){
     setMensaje("❌ Error al cargar matches")
     return

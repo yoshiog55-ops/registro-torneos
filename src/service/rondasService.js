@@ -1,5 +1,5 @@
 import { supabase } from "../supabase"
-
+import { obtenerEventoActual } from "../utils/evento"
 export const guardarRonda = async (torneo_id, ronda) => {
 
   // 🚫 validar ronda activa
@@ -8,7 +8,7 @@ export const guardarRonda = async (torneo_id, ronda) => {
     .select("*")
     .eq("torneo_id", torneo_id)
     .eq("status", "activa")
-
+const evento = await obtenerEventoActual(torneo_id)
   if(activa.length > 0 && ronda.stage === "2"){
     // permitir solo si es la misma ronda (para reemplazar)
     if(activa[0].numero_ronda !== ronda.numero){
@@ -74,7 +74,8 @@ const status = todosConResultado ? "finalizada" : "activa"
     .insert({
       torneo_id,
       numero_ronda: ronda.numero,
-      status
+      status,
+      evento_id: evento.id,
     })
     .select()
     .single()
@@ -94,7 +95,8 @@ const status = todosConResultado ? "finalizada" : "activa"
   jugador2_id: m.jugador2_id,
   ganador_final: ganador,
   empate: empate, // 🔥 AQUÍ
-  confirmado: ganador !== null || empate
+  confirmado: ganador !== null || empate,
+  evento_id: evento.id,
     }
   })
 

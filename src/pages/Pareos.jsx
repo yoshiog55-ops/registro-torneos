@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { supabase } from "../supabase"
 import SelectorRonda from "../components/SelectorRonda"
 import MatchCard from "../components/MatchCard"
-
+import { obtenerEventoActual } from "../utils/evento"
 export default function Pareos() {
 
   const [rondas, setRondas] = useState([])
@@ -19,7 +19,8 @@ export default function Pareos() {
   const [mensaje, setMensaje] = useState("")
   const [tiempoRestante, setTiempoRestante] = useState(null)
   const [modo, setModo] = useState("rondas")
-
+  const [eventoActual, setEventoActual] = useState(null)
+  const [torneoSeleccionado, setTorneoSeleccionado] = useState(null)
   // =========================
   // 🔐 INIT
   // =========================
@@ -27,27 +28,35 @@ export default function Pareos() {
     init()
   }, [])
 
-  const init = async () => {
+const init = async () => {
 
-    const { data } = await supabase.auth.getSession()
+  const { data } = await supabase.auth.getSession()
 
-    if(data.session){
-      // ⚠️ aquí puedes mejorar luego con rol real
-      setEsAdmin(true)
-    }
-
-    const saved = localStorage.getItem("player_id")
-    if(saved){
-      setUserId(saved)
-    }
-
-    const savedRonda = localStorage.getItem("ronda_id")
-    if(savedRonda){
-      setRondaSeleccionada(savedRonda)
-    }
-
-    cargarRondas()
+  if(data.session){
+    setEsAdmin(true)
   }
+
+  const saved = localStorage.getItem("player_id")
+  if(saved){
+    setUserId(saved)
+  }
+
+  const savedRonda = localStorage.getItem("ronda_id")
+  if(savedRonda){
+    setRondaSeleccionada(savedRonda)
+  }
+
+  // 🔥 obtener torneo activo
+  const { data: torneos } = await supabase
+    .from("torneos")
+    .select("*")
+    .eq("activo", true)
+
+  if(torneos?.length > 0){
+    setTorneoSeleccionado(torneos[0].id)
+  }
+
+}
 
   // =========================
   // 🔄 REFRESH
@@ -61,6 +70,27 @@ export default function Pareos() {
       await cargarStandings()
     }
   }
+
+  useEffect(() => {
+
+  if(!torneoSeleccionado) return
+
+  async function cargarEvento(){
+    const evento = await obtenerEventoActual(torneoSeleccionado)
+    setEventoActual(evento)
+  }
+
+  cargarEvento()
+
+}, [torneoSeleccionado])
+
+useEffect(() => {
+
+  if(!eventoActual) return
+
+  cargarRondas()
+
+}, [eventoActual])
 
 useEffect(() => {
 
@@ -86,20 +116,26 @@ useEffect(() => {
 }, [])
 
 useEffect(() => {
-  if(rondaSeleccionada && modo === "rondas"){
-    localStorage.setItem("ronda_id", rondaSeleccionada)
-    cargarMatches()
-  }
-}, [rondaSeleccionada, modo])
+
+  if(!eventoActual) return
+  if(!rondaSeleccionada) return
+  if(modo !== "rondas") return
+
+  localStorage.setItem("ronda_id", rondaSeleccionada)
+
+  cargarMatches()
+
+}, [rondaSeleccionada, modo, eventoActual])
 
   // =========================
   // 📊 RONDAS
   // =========================
 const cargarRondas = async () => {
-
+if(!eventoActual) return
   const { data } = await supabase
     .from("rondas")
     .select("*")
+    .eq("evento_id", eventoActual.id)
     .order("numero_ronda", { ascending: false })
 
   setRondas(data || [])
@@ -130,11 +166,12 @@ const cargarRondas = async () => {
   // 📊 MATCHES
   // =========================
   const cargarMatches = async () => {
-
+if(!eventoActual) return
     const { data } = await supabase
       .from("matches")
       .select("*")
       .eq("ronda_id", rondaSeleccionada)
+      .eq("evento_id", eventoActual.id)
       .order("mesa", { ascending: true })
 
     if(!data){
@@ -183,13 +220,14 @@ let formateado = data.map(m => {
   }
 })
 
-    // 🔥 filtro jugador
-    if(!esAdmin && userId){
-      formateado = formateado.filter(m =>
-        String(m.jugador1_id) === String(userId) ||
-        String(m.jugador2_id) === String(userId)
-      )
-    }
+  const user = String(userId || "").trim()
+
+if(!esAdmin && user){
+  formateado = formateado.filter(m =>
+    String(m.jugador1_id).trim() === user ||
+    String(m.jugador2_id).trim() === user
+  )
+}
 
     // 🔥 pendientes
     const pendientesFiltrados = formateado.filter(m => !m.confirmado)
@@ -202,10 +240,11 @@ let formateado = data.map(m => {
   // 🏆 STANDINGS
   // =========================
   const cargarStandings = async () => {
-
+if(!eventoActual) return
     const { data } = await supabase
       .from("standings")
       .select("*")
+      .eq("evento_id", eventoActual.id)
       .order("posicion", { ascending: true })
 
     if(!data){
@@ -261,6 +300,8 @@ let formateado = data.map(m => {
 
 useEffect(() => {
 
+  if(!eventoActual) return
+
   const channel = supabase
     .channel('matches-global')
     .on(
@@ -268,7 +309,8 @@ useEffect(() => {
       {
         event: '*',
         schema: 'public',
-        table: 'matches'
+        table: 'matches',
+        filter: `evento_id=eq.${eventoActual.id}`
       },
       async () => {
         if(modo === "rondas"){
@@ -282,7 +324,7 @@ useEffect(() => {
     supabase.removeChannel(channel)
   }
 
-}, [modo, rondaSeleccionada])
+}, [eventoActual, modo])
 
 useEffect(() => {
 
@@ -309,6 +351,8 @@ useEffect(() => {
 
 useEffect(() => {
 
+  if(!eventoActual) return
+
   const channel = supabase
     .channel('rondas-changes')
     .on(
@@ -316,10 +360,20 @@ useEffect(() => {
       {
         event: '*',
         schema: 'public',
-        table: 'rondas'
+        table: 'rondas',
+        filter: `evento_id=eq.${eventoActual.id}`
       },
       async () => {
+
+        console.log("🔥 Cambio en rondas detectado")
+
         await cargarRondas()
+
+        // 🔥 CLAVE: recargar matches también
+        if(modo === "rondas"){
+          await cargarMatches()
+        }
+
       }
     )
     .subscribe()
@@ -328,7 +382,39 @@ useEffect(() => {
     supabase.removeChannel(channel)
   }
 
-}, [])
+}, [eventoActual, modo])
+
+useEffect(() => {
+
+  if(!eventoActual) return
+
+  const channel = supabase
+    .channel('matches-changes')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'matches',
+        filter: `evento_id=eq.${eventoActual.id}`
+      },
+      async () => {
+
+        console.log("🔥 Cambio en matches detectado")
+
+        if(modo === "rondas"){
+          await cargarMatches()
+        }
+
+      }
+    )
+    .subscribe()
+
+  return () => {
+    supabase.removeChannel(channel)
+  }
+
+}, [eventoActual, modo, rondaSeleccionada])
 
   // =========================
   // 🎯 REPORTAR

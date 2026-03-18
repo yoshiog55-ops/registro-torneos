@@ -63,6 +63,11 @@ useEffect(()=>{
 
 },[])
 
+function cambiarVista(v){
+  setVista(v)
+  localStorage.setItem("admin_vista", v)
+}
+
 async function cargarTorneos(){
 
 const {data} = await supabase
@@ -282,10 +287,6 @@ cargarJugadoresDB()
 }
 
 useEffect(() => {
-  localStorage.setItem("admin_vista", vista)
-}, [vista])
-
-useEffect(() => {
   localStorage.setItem("admin_torneo", torneoSeleccionado)
 }, [torneoSeleccionado])
 
@@ -403,31 +404,30 @@ Cerrar sesión
 <div className="flex flex-wrap gap-3 mb-6">
 
 <button
-onClick={()=>setVista("torneo")}
+onClick={()=>cambiarVista("torneo")}
 className="bg-[#00B7C3] text-white px-4 py-2 rounded"
 >
 Torneo
 </button>
 
 <button
-onClick={()=>{
-setVista("jugadores")
-cargarJugadoresDB()
-}}
+onClick={()=>{cambiarVista("jugadores"); cargarJugadoresDB()}}
 className="bg-gray-700 text-white px-4 py-2 rounded"
 >
 Jugadores
 </button>
 
 <button
-onClick={()=>setVista("torneos")}
+onClick={()=>cambiarVista("torneos")}
+
 className="bg-purple-700 text-white px-4 py-2 rounded"
 >
 Torneos
 </button>
 
 <button
-onClick={()=>setVista("rondas")}
+onClick={()=>cambiarVista("rondas")}
+
 className="bg-indigo-700 text-white px-4 py-2 rounded"
 >
 Rondas

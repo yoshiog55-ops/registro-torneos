@@ -1,6 +1,7 @@
 import { useState,useEffect } from "react"
 import { supabase } from "../supabase"
 import { Link } from "react-router-dom"
+import { obtenerEventoActual } from "../utils/evento"
 
 export default function Home(){
 
@@ -79,6 +80,8 @@ const {data:estado} = await supabase
 
 const late = !estado.registro_abierto
 
+const evento = await obtenerEventoActual(torneoSeleccionado || torneos[0]?.id)
+
 const {error} = await supabase
 .from("inscripciones")
 .insert({
@@ -87,11 +90,12 @@ jugador_id: jugador.id,
 torneo_id: torneoSeleccionado || torneos[0]?.id,
 late: late,
 fecha: new Date().toLocaleDateString("en-CA"),
-pagado: false
+pagado: false,
+evento_id: evento.id
 
 })
 
-localStorage.setItem("player_id", player_id)
+localStorage.setItem("player_id", jugador.player_id)
 
 if(error){
 

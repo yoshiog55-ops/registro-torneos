@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { parseTDF } from "../utils/parseTDF"
 import { guardarRonda } from "../service/rondasService"
 import { supabase } from "../supabase"
-
+import { obtenerEventoActual } from "../utils/evento"
 export default function SubirTDF() {
 
   const [torneos, setTorneos] = useState([])
@@ -21,6 +21,7 @@ export default function SubirTDF() {
 const [matches, setMatches] = useState([]) // 🔥 NUEVO
   const [standingsPreview, setStandingsPreview] = useState([])
   const [standings, setStandings] = useState([])
+  const [eventoActual, setEventoActual] = useState(null)
 
   // =========================
   // 🔥 CARGAR TORNEOS
@@ -46,11 +47,18 @@ const [matches, setMatches] = useState([]) // 🔥 NUEVO
   // =========================
   // 🔄 EFECTOS
   // =========================
-  useEffect(() => {
-    if(torneoSeleccionado){
-      cargarRondas()
-    }
-  }, [torneoSeleccionado])
+useEffect(() => {
+
+  if(!torneoSeleccionado) return
+
+  async function init(){
+    const evento = await obtenerEventoActual(torneoSeleccionado)
+    setEventoActual(evento)
+  }
+
+  init()
+
+}, [torneoSeleccionado])
 
 useEffect(() => {
   if(rondaSeleccionada){
@@ -71,7 +79,8 @@ useEffect(() => {
         event: '*',
         schema: 'public',
         table: 'matches',
-        filter: `ronda_id=eq.${rondaSeleccionada}`
+        filter: `ronda_id=eq.${rondaSeleccionada}`,
+        filter: `evento_id=eq.${eventoActual.id}`
       },
       async () => {
         await cargarStats()
@@ -88,7 +97,7 @@ useEffect(() => {
   // 📊 RONDAS
   // =========================
 const cargarRondas = async () => {
-
+if(!eventoActual) return
   const { data } = await supabase
     .from("rondas")
     .select("*")
@@ -111,6 +120,7 @@ const cargarRondas = async () => {
   // 📊 STATS
   // =========================
   const cargarStats = async () => {
+    if(!eventoActual) return
 const { data } = await supabase
   .from("matches")
   .select("*")
@@ -222,6 +232,7 @@ if(activa && activa.length > 0){
   // 📤 SUBIR
   // =========================
 const handleUpload = async () => {
+const evento = await obtenerEventoActual(torneoSeleccionado)
 
   if(!torneoSeleccionado) return
 
@@ -236,17 +247,19 @@ const handleUpload = async () => {
       await supabase
         .from("standings")
         .delete()
-        .eq("torneo_id", torneoSeleccionado)
+  .eq("evento_id", evento.id)
 
-      await supabase
-        .from("standings")
-        .insert(
-          standingsPreview.map(s => ({
-            torneo_id: torneoSeleccionado,
-            player_id: s.player_id,
-            posicion: s.posicion
-          }))
-        )
+
+await supabase
+  .from("standings")
+  .insert(
+    standingsPreview.map(s => ({
+      torneo_id: torneoSeleccionado,
+      player_id: s.player_id,
+      posicion: s.posicion,
+      evento_id: evento.id // 🔥 CLAVE
+    }))
+  )
 
       setMensaje("🏆 Standings finales publicados")
 
@@ -353,7 +366,7 @@ setMensaje("✅ Ronda finalizada")
   // 🏆 STANDINGS
   // =========================
 const cargarStandings = async () => {
-
+if(!eventoActual) return
   const { data } = await supabase
     .from("standings")
     .select("*")

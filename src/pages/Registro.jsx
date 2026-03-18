@@ -1,6 +1,6 @@
 import { useState,useEffect } from "react"
 import { supabase } from "../supabase"
-
+import { obtenerEventoActual } from "../utils/evento"
 export default function Registro(){
 
 const [playerId,setPlayerId]=useState("")
@@ -99,7 +99,7 @@ telefono
 .select()
 .single()
 
-localStorage.setItem("player_id", player_id)
+localStorage.setItem("player_id", jugador.player_id)
 
 if(error){
 
@@ -115,6 +115,8 @@ const {data:estado} = await supabase
 .select("*")
 .single()
 
+const evento = await obtenerEventoActual(torneoSeleccionado || torneos[0]?.id)
+
 const late = !estado.registro_abierto
 
 // inscribir automáticamente
@@ -127,7 +129,8 @@ jugador_id: jugador.id,
 torneo_id: torneoSeleccionado || torneos[0]?.id,
 late: late,
 fecha: new Date().toLocaleDateString("en-CA"),
-pagado: false
+pagado: false,
+evento_id: evento.id
 
 })
 
