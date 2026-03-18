@@ -401,23 +401,9 @@ if(!eventoActual) return
   })
 
 const formateado = data.map(m => {
-
-  const r1 = m.ganador_reportado_1
-  const r2 = m.ganador_reportado_2
-
-  let estado = "pendiente"
-
-  if(m.confirmado){
-    estado = "confirmado"
-  }else if(r1 && r2 && r1 !== r2){
-    estado = "conflicto"
-  }else if(r1 || r2){
-    estado = "esperando"
-  }
-
   return {
     ...m,
-    estado
+    nombre: mapa[m.player_id] || m.player_id, // 🔥 AQUI
   }
 })
   setStandings(formateado)
@@ -647,8 +633,9 @@ const formateado = data.map(m => {
           {standings.map(s => (
             <div key={s.player_id} className="flex justify-between border-b py-1">
               <span>#{s.posicion}</span>
-              <span>{s.player_id}</span>
-            </div>
+<span>
+  {s.nombre} ({s.player_id})
+</span>            </div>
           ))}
 
         </div>
