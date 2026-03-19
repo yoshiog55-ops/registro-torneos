@@ -41,7 +41,7 @@ const init = async () => {
     setUserId(saved)
   }
 
-  const savedRonda = localStorage.getItem("ronda_id")
+const savedRonda = localStorage.getItem(`ronda_id_${torneoSeleccionado}`)
   if(savedRonda){
     setRondaSeleccionada(savedRonda)
   }
@@ -85,17 +85,30 @@ const init = async () => {
 }, [torneoSeleccionado])
 
 useEffect(() => {
+  if(!torneoSeleccionado) return
 
-  if(!eventoActual) return
+  // 🧹 limpiar TODO
+  setRondas([])
+  setRondaSeleccionada(null)
+  setMatches([])
+  setStandings([])
+  setPendientes([])
+  setModo("rondas")
+  setEventoActual(null)
+
+}, [torneoSeleccionado])
+
+useEffect(() => {
+  if(!eventoActual?.id) return
 
   cargarRondas()
 
-}, [eventoActual])
+}, [eventoActual?.id])
 
 
 useEffect(() => {
   if(rondaSeleccionada){
-    localStorage.setItem("ronda_id", rondaSeleccionada)
+    localStorage.setItem(`ronda_id_${torneoSeleccionado}`, rondaSeleccionada)
   }
 }, [rondaSeleccionada])
 
@@ -113,53 +126,66 @@ useEffect(() => {
   // 📊 RONDAS
   // =========================
 const cargarRondas = async () => {
-if(!eventoActual) return
+  if(!eventoActual) return
+
   const { data } = await supabase
     .from("rondas")
     .select("*")
     .eq("evento_id", eventoActual.id)
     .order("numero_ronda", { ascending: false })
 
-  setRondas(data || [])
+  const lista = data || []
 
-  const activa = data?.find(r => r.status === "activa")
+  setRondas(lista)
 
- if(activa){
-  setModo("rondas")
+  // 🔥 NUEVO: validar ronda seleccionada
+  if(lista.length > 0){
+    const existe = lista.find(r => r.id === rondaSeleccionada)
 
-  setRondaSeleccionada(prev => {
-    if(prev !== activa.id){
-      return activa.id
+    if(!existe){
+      setRondaSeleccionada(lista[0].id)
     }
-    return prev
-  })
-}else{
+  }
 
-  // 🔥 siempre mantener rondas visibles
-  setModo("rondas")
+  const activa = lista.find(r => r.status === "activa")
 
-  // 🔥 seleccionar última ronda jugada
-  if(data && data.length > 0){
+  if(activa){
+    setModo("rondas")
+
     setRondaSeleccionada(prev => {
-      if(prev !== data[0].id){
-        return data[0].id
+      if(prev !== activa.id){
+        return activa.id
       }
       return prev
     })
+
+  }else{
+
+    // 🔥 siempre mantener rondas visibles
+    setModo("rondas")
+
+    // 🔥 seleccionar última ronda jugada
+    if(lista.length > 0){
+      setRondaSeleccionada(prev => {
+        if(prev !== lista[0].id){
+          return lista[0].id
+        }
+        return prev
+      })
+    }
+
+    // 🔥 cargar standings si existen
+    const { data: standingsData } = await supabase
+      .from("standings")
+      .select("id")
+      .eq("evento_id", eventoActual.id)
+      .limit(1)
+
+    if(standingsData && standingsData.length > 0){
+      await cargarStandings()
+      setModo("standings")
+    }
   }
-
-  // 🔥 cargar standings si existen
-  const { data: standingsData } = await supabase
-    .from("standings")
-    .select("id")
-    .eq("evento_id", eventoActual.id) // 🔥 IMPORTANTE
-    .limit(1)
-
-if(standingsData && standingsData.length > 0){
-  await cargarStandings()
-  setModo("standings") // 🔥 CLAVE
-}
-}
 }
 
   // =========================
@@ -301,7 +327,7 @@ if(!eventoActual) return
 useEffect(() => {
 
   if(!eventoActual) return
-
+if(!eventoActual?.id) return
   const channel = supabase
     .channel('matches-global')
     .on(
@@ -333,7 +359,7 @@ setTimeout(() => {
 useEffect(() => {
 
   if(!eventoActual) return
-
+if(!eventoActual?.id) return
   const channel = supabase
     .channel('standings-changes')
     .on(
@@ -360,7 +386,7 @@ useEffect(() => {
 useEffect(() => {
 
   if(!eventoActual) return
-
+if(!eventoActual?.id) return
   const channel = supabase
     .channel('rondas-changes')
     .on(
@@ -395,7 +421,7 @@ useEffect(() => {
 useEffect(() => {
 
   if(!eventoActual) return
-
+if(!eventoActual?.id) return
   const channel = supabase
     .channel('matches-changes')
     .on(

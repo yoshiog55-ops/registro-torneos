@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { parseTDF } from "../utils/parseTDF"
 import { guardarRonda } from "../service/rondasService"
 import { supabase } from "../supabase"
@@ -23,7 +23,7 @@ const [matches, setMatches] = useState([]) // 🔥 NUEVO
   const [standings, setStandings] = useState([])
   const [eventoActual, setEventoActual] = useState(null)
 const [modo, setModo] = useState("ronda") 
-
+const fileInputRef = useRef(null)
   // =========================
   // 🔥 CARGAR TORNEOS
   // =========================
@@ -67,7 +67,29 @@ useEffect(() => {
   }
 }, [rondaSeleccionada])
 
+useEffect(() => {
+  if(!torneoSeleccionado) return
 
+  async function init(){
+
+    // 🧹 limpiar primero
+    setRondas([])
+    setRondaSeleccionada(null)
+    setMatches([])
+    setMatchesDetalle([])
+    setStats(null)
+    setStandings([])
+    setStandingsPreview([])
+    setModo("ronda")
+
+    // 🔥 cargar evento nuevo
+    const evento = await obtenerEventoActual(torneoSeleccionado)
+    setEventoActual(evento)
+  }
+
+  init()
+
+}, [torneoSeleccionado])
 useEffect(() => {
   if(eventoActual){
     cargarRondas()
@@ -197,87 +219,109 @@ const cargarStats = async () => {
   // 📤 SUBIR ARCHIVO
   // =========================
   
-  const handleFile = async (e) => {
-const { data: activa } = await supabase
-  .from("rondas")
-  .select("*")
-  .eq("torneo_id", torneoSeleccionado)
-  .eq("status", "activa")
+ const handleFile = async (e) => {
 
-if(activa && activa.length > 0){
+  // 🔥 LIMPIAR ESTADO SIEMPRE
+  setMensaje("")
+  setPreview(null)
+  setStandingsPreview([])
 
-  const rondaActiva = activa[0]
-
-  const { data: matches } = await supabase
-    .from("matches")
-    .select("confirmado")
-    .eq("ronda_id", rondaActiva.id)
-
-  const pendientes = (matches || []).filter(m => !m.confirmado)
-
-  if(pendientes.length > 0){
-    setMensaje(`❌ Hay ${pendientes.length} partidas sin confirmar`)
+  // 🔥 VALIDAR TORNEO PRIMERO
+  if(!torneoSeleccionado){
+    setMensaje("❌ Selecciona un torneo primero")
+    e.target.value = null
     return
   }
 
-  // 🔥 AUTO FINALIZAR
-  await supabase
-    .from("rondas")
-    .update({ status: "finalizada" })
-    .eq("id", rondaActiva.id)
-}
+  if(!eventoActual?.id){
+    setMensaje("❌ Evento no disponible")
+    e.target.value = null
+    return
+  }
 
-if(activa && activa.length > 0){
-  setMensaje("❌ Debes finalizar la ronda actual antes de subir otra")
-  return
-}
-    if(!torneoSeleccionado){
-      setMensaje("❌ Selecciona un torneo primero")
+  // 🔥 VALIDAR ARCHIVO
+  const f = e.target.files[0]
+  if(!f) return
+
+  // =========================
+  // 🔥 VALIDAR RONDA ACTIVA
+  // =========================
+  const { data: activa } = await supabase
+    .from("rondas")
+    .select("*")
+    .eq("torneo_id", torneoSeleccionado)
+    .eq("evento_id", eventoActual.id)
+    .eq("status", "activa")
+
+  if(activa && activa.length > 0){
+
+    const rondaActiva = activa[0]
+
+    const { data: matches } = await supabase
+      .from("matches")
+      .select("confirmado")
+      .eq("ronda_id", rondaActiva.id)
+
+    const pendientes = (matches || []).filter(m => !m.confirmado)
+
+    if(pendientes.length > 0){
+      setMensaje(`❌ Hay ${pendientes.length} partidas sin confirmar`)
+      e.target.value = null // 🔥 CLAVE (permite reintentar)
       return
     }
 
-    const f = e.target.files[0]
-    if(!f) return
+    // 🔥 AUTO FINALIZAR
+    await supabase
+      .from("rondas")
+      .update({ status: "finalizada" })
+      .eq("id", rondaActiva.id)
 
-    setFile(f)
-    setMensaje("")
-    setPreview(null)
-    setPuedeReemplazar(false)
-    setStandingsPreview([])
-
-    try{
-      const { rounds, standings } = await parseTDF(f)
-
-      if(
-        (!rounds || rounds.length === 0) &&
-        (!standings || standings.length === 0)
-      ){
-        throw new Error("Archivo inválido")
-      }
-
-      const esSoloStandings = (!rounds || rounds.length === 0) && standings?.length > 0
-
-      if(rounds && rounds.length > 0){
-        const ronda = rounds[rounds.length - 1]
-        setPreview(ronda)
-      }else{
-        setPreview(null)
-      }
-
-      if(standings && standings.length > 0){
-        setStandingsPreview(standings)
-
-        if(esSoloStandings){
-          setMensaje("🏆 Archivo de clasificación final detectado")
-        }else{
-          setMensaje("📊 Archivo con ronda + standings")
-        }
-      }
-
-    }catch(err){
-      setMensaje("❌ " + err.message)
-    }
+    // 🔥 OPCIONAL PERO RECOMENDADO
+    await cargarRondas()
   }
+
+  // =========================
+  // 📄 PROCESAR ARCHIVO
+  // =========================
+  setFile(f)
+  setPuedeReemplazar(false)
+
+  try{
+    const { rounds, standings } = await parseTDF(f)
+
+    if(
+      (!rounds || rounds.length === 0) &&
+      (!standings || standings.length === 0)
+    ){
+      throw new Error("Archivo inválido")
+    }
+
+    const esSoloStandings =
+      (!rounds || rounds.length === 0) &&
+      standings?.length > 0
+
+    if(rounds && rounds.length > 0){
+      const ronda = rounds[rounds.length - 1]
+      setPreview(ronda)
+    }else{
+      setPreview(null)
+    }
+
+    if(standings && standings.length > 0){
+      setStandingsPreview(standings)
+
+      if(esSoloStandings){
+        setMensaje("🏆 Archivo de clasificación final detectado")
+      }else{
+        setMensaje("📊 Archivo con ronda + standings")
+      }
+    }
+
+  }catch(err){
+    setMensaje("❌ " + err.message)
+    e.target.value = null // 🔥 CLAVE (reintentar mismo archivo)
+  }
+}
 
   // =========================
   // 📤 SUBIR
@@ -352,6 +396,7 @@ const finalizarRonda = async () => {
     .from("matches")
     .select("*")
     .eq("ronda_id", rondaSeleccionada)
+    .eq("evento_id", eventoActual.id)
 
   if(error){
     alert("❌ Error al obtener matches")
@@ -468,7 +513,7 @@ const formateado = data.map(m => {
         ))}
       </select>
 
-      <input type="file" accept=".tdf" onChange={handleFile} className="mb-4"/>
+      <input type="file" accept=".tdf"  ref={fileInputRef} onChange={handleFile} className="mb-4"/>
 
       {mensaje && (
         <div className="mb-4 text-sm p-2 rounded bg-gray-100">{mensaje}</div>

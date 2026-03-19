@@ -4,6 +4,9 @@ const user = String(userId || "").trim()
 const j1 = String(match.jugador1_id || "").trim()
 const j2 = String(match.jugador2_id || "").trim()
 
+// 🔥 BYE: si no hay jugador2
+const esBye = match.jugador2_id === null || match.jugador2_id === undefined
+
 const yaReporte =
   (user === j1 && match.ganador_reportado_1) ||
   (user === j2 && match.ganador_reportado_2)
@@ -54,13 +57,19 @@ const yaReporte =
         <p className="text-xs text-gray-500">{match.jugador1_id}</p>
       </div>
 
-      <p className="text-center text-gray-400">VS</p>
+      {esBye ? (
+        <p className="text-center text-gray-400 font-bold text-lg">🎯 BYE</p>
+      ) : (
+        <p className="text-center text-gray-400">VS</p>
+      )}
 
       {/* JUGADOR 2 */}
+      {!esBye && (
       <div className={`text-center mb-3 ${ganador === j2 ? "font-bold text-green-600" : ""}`}>
         <p>{match.jugador2_nombre}</p>
         <p className="text-xs text-gray-500">{match.jugador2_id}</p>
       </div>
+      )}
 
       {/* EMPATE */}
       {esEmpate && (
@@ -70,7 +79,7 @@ const yaReporte =
       )}
 
       {/* BOTONES */}
-      {puedeReportar && (
+      {!esBye && puedeReportar && (
         <div className="flex flex-col gap-2">
 
 <div className="flex gap-2">
@@ -157,8 +166,15 @@ const yaReporte =
         </div>
       )}
 
+      {/* BYE CONFIRMADO */}
+      {esBye && (
+        <p className="text-center text-green-600 font-bold">
+          ✅ BYE - Victoria automática
+        </p>
+      )}
+
       {/* BLOQUEO VISUAL */}
-      {!puedeReportar && (
+      {!esBye && !puedeReportar && (
         <p className="text-center text-xs text-gray-400">
           No participas en este match
         </p>
