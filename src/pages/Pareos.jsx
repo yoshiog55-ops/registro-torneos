@@ -155,9 +155,10 @@ if(!eventoActual) return
     .eq("evento_id", eventoActual.id) // 🔥 IMPORTANTE
     .limit(1)
 
-  if(standingsData && standingsData.length > 0){
-    await cargarStandings()
-  }
+if(standingsData && standingsData.length > 0){
+  await cargarStandings()
+  setModo("standings") // 🔥 CLAVE
+}
 }
 }
 
@@ -537,6 +538,34 @@ useEffect(() => {
 )}
       <h2 className="text-xl font-bold mb-4">📊 Pareos</h2>
 
+<div className="flex gap-2 mb-4">
+
+  <button
+    onClick={()=>setModo("rondas")}
+    className={`px-3 py-2 rounded ${
+      modo === "rondas"
+        ? "bg-blue-600 text-white"
+        : "bg-gray-200"
+    }`}
+  >
+    Rondas
+  </button>
+
+  {standings.length > 0 && (
+    <button
+      onClick={()=>setModo("standings")}
+      className={`px-3 py-2 rounded ${
+        modo === "standings"
+          ? "bg-yellow-500 text-white"
+          : "bg-gray-200"
+      }`}
+    >
+      🏆 Standings
+    </button>
+  )}
+
+</div>
+
       {/* 🔄 REFRESH */}
       <button
         onClick={refrescar}
@@ -559,7 +588,7 @@ useEffect(() => {
       )}
 
       {/* 🏆 STANDINGS */}
-      {standings.length > 0 && (
+      {modo === "standings" && standings.length > 0 && (
         <div className="bg-white p-4 rounded shadow">
 
           <h3 className="font-bold mb-3">🏆 Standings</h3>

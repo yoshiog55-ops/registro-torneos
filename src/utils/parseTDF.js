@@ -38,12 +38,31 @@ export async function parseTDF(file){
   // =========================
   // 🏆 STANDINGS
   // =========================
-  const standingsXML = xml.querySelectorAll("standings pod[type='finished'] player")
+  // 🔥 IMPORTANTE: Tomar SOLO el pod con la categoría más grande (el ranking global)
+  const podsFinished = xml.querySelectorAll("standings pod[type='finished']")
+  
+  const allPods = Array.from(podsFinished).map(pod => {
+    const players = pod.querySelectorAll("player")
+    return {
+      category: pod.getAttribute("category"),
+      playerCount: players.length,
+      players: players
+    }
+  })
+  
+  // 🔥 Seleccionar el pod con más jugadores (el ranking general)
+  const mainPod = allPods.length > 0 
+    ? allPods.reduce((prev, current) => 
+        current.playerCount > prev.playerCount ? current : prev
+      )
+    : null
 
-  const standings = Array.from(standingsXML).map(p => ({
-    player_id: p.getAttribute("id"),
-    posicion: Number(p.getAttribute("place")),
-  }))
+  const standings = mainPod 
+    ? Array.from(mainPod.players).map(p => ({
+        player_id: p.getAttribute("id"),
+        posicion: Number(p.getAttribute("place")),
+      }))
+    : []
 
   return {
     rounds,

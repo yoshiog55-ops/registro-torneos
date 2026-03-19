@@ -22,6 +22,7 @@ const [matches, setMatches] = useState([]) // 🔥 NUEVO
   const [standingsPreview, setStandingsPreview] = useState([])
   const [standings, setStandings] = useState([])
   const [eventoActual, setEventoActual] = useState(null)
+const [modo, setModo] = useState("ronda") 
 
   // =========================
   // 🔥 CARGAR TORNEOS
@@ -68,6 +69,12 @@ useEffect(() => {
 
 
 useEffect(() => {
+  if(eventoActual){
+    cargarRondas()
+  }
+}, [eventoActual])
+
+useEffect(() => {
 
   if(!rondaSeleccionada) return
 
@@ -100,7 +107,7 @@ if(!eventoActual) return
   const { data } = await supabase
     .from("rondas")
     .select("*")
-    .eq("torneo_id", torneoSeleccionado)
+    .eq("evento_id", eventoActual.id)
     .order("numero_ronda", { ascending: false })
 
  setRondas([...(data || [])])
@@ -113,6 +120,17 @@ if(!eventoActual) return
     setRondaSeleccionada(null)
     await cargarStandings()
   }
+
+  if(!activa){
+  const { data: standingsData } = await supabase
+    .from("standings")
+    .select("id")
+    .eq("evento_id", eventoActual.id)
+
+  if(standingsData && standingsData.length > 0){
+    setModo("standings")
+  }
+}
 }
 
   // =========================
@@ -185,6 +203,29 @@ const { data: activa } = await supabase
   .select("*")
   .eq("torneo_id", torneoSeleccionado)
   .eq("status", "activa")
+
+if(activa && activa.length > 0){
+
+  const rondaActiva = activa[0]
+
+  const { data: matches } = await supabase
+    .from("matches")
+    .select("confirmado")
+    .eq("ronda_id", rondaActiva.id)
+
+  const pendientes = (matches || []).filter(m => !m.confirmado)
+
+  if(pendientes.length > 0){
+    setMensaje(`❌ Hay ${pendientes.length} partidas sin confirmar`)
+    return
+  }
+
+  // 🔥 AUTO FINALIZAR
+  await supabase
+    .from("rondas")
+    .update({ status: "finalizada" })
+    .eq("id", rondaActiva.id)
+}
 
 if(activa && activa.length > 0){
   setMensaje("❌ Debes finalizar la ronda actual antes de subir otra")
@@ -380,7 +421,7 @@ if(!eventoActual) return
   const { data } = await supabase
     .from("standings")
     .select("*")
-    .eq("torneo_id", torneoSeleccionado)
+    .eq("evento_id", eventoActual.id)
     .order("posicion", { ascending: true })
 
   if(!data){
@@ -414,7 +455,7 @@ const formateado = data.map(m => {
   return (
     <div className="bg-white p-5 rounded-xl shadow">
 
-      <h3 className="text-lg font-bold mb-4">📤 Subir ronda (TDF)</h3>
+      <h3 className="text-lg font-bold mb-4">📤 Subir Informacion (TDF)</h3>
 
       <select
         value={torneoSeleccionado}
@@ -448,7 +489,7 @@ const formateado = data.map(m => {
             : "bg-green-600"
         }`}
       >
-        Subir ronda
+        Subir Informacion
       </button>
 <button
   onClick={async ()=>{
@@ -467,21 +508,43 @@ const formateado = data.map(m => {
 
           <p className="font-bold mb-2">Rondas</p>
 
-          <div className="flex gap-2 flex-wrap mb-3">
-            {rondas.map(r => (
-              <button
-                key={r.id}
-                onClick={()=>setRondaSeleccionada(r.id)}
-                className={`px-3 py-1 rounded ${
-                  r.id === rondaSeleccionada
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-200"
-                }`}
-              >
-                R{r.numero_ronda}
-              </button>
-            ))}
-          </div>
+<div className="flex gap-2 flex-wrap mb-3">
+
+  {rondas.map(r => (
+    <button
+      key={r.id}
+      onClick={()=>{
+        setModo("ronda")
+        setRondaSeleccionada(r.id)
+      }}
+      className={`px-3 py-1 rounded ${
+        r.id === rondaSeleccionada && modo === "ronda"
+          ? "bg-blue-600 text-white"
+          : "bg-gray-200"
+      }`}
+    >
+      R{r.numero_ronda}
+    </button>
+  ))}
+
+  {/* 🏆 BOTÓN NUEVO */}
+  {standings.length > 0 && (
+    <button
+      onClick={()=>{
+        setModo("standings")
+        setRondaSeleccionada(null)
+      }}
+      className={`px-3 py-1 rounded ${
+        modo === "standings"
+          ? "bg-yellow-500 text-white"
+          : "bg-gray-200"
+      }`}
+    >
+      🏆
+    </button>
+  )}
+
+</div>
 
           {rondaActual && (
             <p className="mb-2 font-semibold">
@@ -494,24 +557,10 @@ const formateado = data.map(m => {
               <p>Total: {stats.total}</p>
               <p className="text-green-600">Confirmados: {stats.confirmados}</p>
               <p className="text-red-600">Pendientes: {stats.pendientes}</p>
-
-{rondaActual?.status === "activa" && (
-  <button
-    onClick={finalizarRonda}
-    disabled={stats?.pendientes > 0}
-    className={`w-full mt-3 py-2 rounded text-white ${
-      stats?.pendientes > 0
-        ? "bg-gray-400"
-        : "bg-red-600"
-    }`}
-  >
-    Finalizar ronda
-  </button>
-)}
             </div>
           )}
 
-{(matches || []).length > 0 && (
+{modo === "ronda" && (matches || []).length > 0 && (
   <div className="mt-4 space-y-2">
 
     <p className="font-bold">Matches</p>
@@ -625,7 +674,7 @@ const formateado = data.map(m => {
   )}
 
       {/* STANDINGS */}
-      {rondas.every(r => r.status === "finalizada") && standings.length > 0 && (
+     {modo === "standings" && standings.length > 0 && (
         <div className="mt-6 bg-white p-3 rounded shadow">
 
           <p className="font-bold mb-2">🏆 Standings</p>

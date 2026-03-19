@@ -76,6 +76,10 @@ setTelefono(j.telefono)
 
 }
 
+function normalizarBusqueda(texto){
+return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+}
+
 async function guardarCambios(){
 
     if(!/^[0-9]+$/.test(playerId)){
@@ -152,9 +156,9 @@ onChange={(e)=>setBusqueda(e.target.value)}
 
 {jugadores
 .filter(j =>
-j.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-j.player_id.includes(busqueda) ||
-j.telefono.includes(busqueda)
+(j.nombre && normalizarBusqueda(j.nombre).includes(normalizarBusqueda(busqueda))) ||
+(j.player_id && normalizarBusqueda(j.player_id).includes(normalizarBusqueda(busqueda))) ||
+(j.telefono && normalizarBusqueda(j.telefono).includes(normalizarBusqueda(busqueda)))
 )
 .map(j=>(
 
