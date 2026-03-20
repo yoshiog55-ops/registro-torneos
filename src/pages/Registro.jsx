@@ -99,14 +99,19 @@ telefono
 .select()
 .single()
 
-localStorage.setItem("player_id", jugador.player_id)
-
 if(error){
 
 setMensaje("Error registrando jugador")
 return
 
 }
+
+if(!jugador){
+setMensaje("No se pudo crear el jugador")
+return
+}
+
+localStorage.setItem("player_id", jugador.player_id)
 
 // revisar estado del torneo
 
@@ -116,6 +121,16 @@ const {data:estado} = await supabase
 .single()
 
 const evento = await obtenerEventoActual(torneoSeleccionado || torneos[0]?.id)
+
+if(!evento?.id){
+setMensaje("Jugador registrado, pero no hay evento activo en este torneo. Pide al admin crear un evento.")
+setPlayerInscrito(playerId)
+setPlayerId("")
+setNombre("")
+setAnio("")
+setTelefono("")
+return
+}
 
 const late = !estado.registro_abierto
 

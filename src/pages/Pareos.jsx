@@ -31,6 +31,10 @@ export default function Pareos() {
 
   const [userId, setUserId] = useState(null)
   const [inputId, setInputId] = useState("")
+  const [jugadorVistaId, setJugadorVistaId] = useState(null)
+  const [jugadorVistaNombre, setJugadorVistaNombre] = useState("")
+  const [filtroJugadorInput, setFiltroJugadorInput] = useState("")
+  const [buscandoJugador, setBuscandoJugador] = useState(false)
   const [esAdmin, setEsAdmin] = useState(false)
 
   const [mensaje, setMensaje] = useState("")
@@ -62,6 +66,8 @@ const init = async () => {
   const saved = localStorage.getItem("player_id")
   if(saved){
     setUserId(saved)
+    setJugadorVistaId(saved)
+    setJugadorVistaNombre(saved)
   }
 
   // 🔥 obtener torneos activos
@@ -81,6 +87,14 @@ const init = async () => {
   }
 
 }
+
+useEffect(() => {
+  if (esAdmin) return
+  if (userId && !jugadorVistaId) {
+    setJugadorVistaId(userId)
+    setJugadorVistaNombre(userId)
+  }
+}, [userId, jugadorVistaId, esAdmin])
 
   const refrescar = async () => {
     await cargarRondas()
@@ -365,7 +379,7 @@ let formateado = data.map(m => {
   }
 })
 
-  const user = normalizarId(userId)
+  const user = normalizarId(jugadorVistaId || userId)
 
 if(!esAdmin && user){
   formateado = formateado.filter(m =>
@@ -673,6 +687,112 @@ if(!esUuid(eventoActual?.id)) return
     setReportandoMatchId(null)
   }
 
+  const buscarJugadorPorCredencial = async (valor) => {
+    const limpio = String(valor || "").replace(/\D/g, "").trim()
+    if (!limpio) return null
+
+    const { data, error } = await supabase
+      .from("jugadores")
+      .select("player_id, nombre")
+      .or(`player_id.eq.${limpio},telefono.eq.${limpio}`)
+      .limit(1)
+
+    if (error) throw error
+    if (!data || data.length === 0) return null
+    return data[0]
+  }
+
+  const resolverAccesoJugador = async () => {
+    const credencial = String(inputId || "").replace(/\D/g, "").trim()
+    if (!credencial) {
+      showToast("Ingresa player ID o telefono", "warning")
+      return
+    }
+
+    setBuscandoJugador(true)
+    try {
+      const jugador = await buscarJugadorPorCredencial(credencial)
+      if (!jugador?.player_id) {
+        showToast("No encontramos jugador con ese dato", "error")
+        return
+      }
+
+      const player = String(jugador.player_id)
+      localStorage.setItem("player_id", player)
+      setUserId(player)
+      setJugadorVistaId(player)
+      setJugadorVistaNombre(jugador.nombre || player)
+      setInputId("")
+      showToast("Jugador cargado correctamente", "success")
+    } catch (error) {
+      showToast(`No se pudo validar jugador: ${error.message}`, "error")
+    } finally {
+      setBuscandoJugador(false)
+    }
+  }
+
+  const consultarOtroJugador = async () => {
+    const credencial = String(filtroJugadorInput || "").replace(/\D/g, "").trim()
+    if (!credencial) {
+      showToast("Ingresa player ID o telefono para consultar", "warning")
+      return
+    }
+
+    setBuscandoJugador(true)
+    try {
+      const jugador = await buscarJugadorPorCredencial(credencial)
+      if (!jugador?.player_id) {
+        showToast("No encontramos jugador con ese dato", "error")
+        return
+      }
+
+      const player = String(jugador.player_id)
+      setJugadorVistaId(player)
+      setJugadorVistaNombre(jugador.nombre || player)
+      setFiltroJugadorInput("")
+      showToast(`Mostrando pareos de ${jugador.nombre || player}`, "info")
+    } catch (error) {
+      showToast(`Error al buscar jugador: ${error.message}`, "error")
+    } finally {
+      setBuscandoJugador(false)
+    }
+  }
+
+  const volverAMisPareos = () => {
+    if (!userId) return
+    setJugadorVistaId(String(userId))
+    setFiltroJugadorInput("")
+    showToast("Regresaste a tus pareos", "info")
+  }
+
+  useEffect(() => {
+    if (esAdmin) return
+    const player = normalizarId(jugadorVistaId)
+    if (!player) return
+
+    let cancelado = false
+
+    const cargarNombreJugadorVista = async () => {
+      const { data, error } = await supabase
+        .from("jugadores")
+        .select("nombre")
+        .eq("player_id", player)
+        .maybeSingle()
+
+      if (cancelado) return
+      if (error) return
+
+      const nombre = data?.nombre ? String(data.nombre) : player
+      setJugadorVistaNombre(nombre)
+    }
+
+    cargarNombreJugadorVista()
+
+    return () => {
+      cancelado = true
+    }
+  }, [jugadorVistaId, esAdmin])
+
   // =========================
   // PLAYER ID MODAL
   // =========================
@@ -681,24 +801,22 @@ if(!esUuid(eventoActual?.id)) return
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
         <div className="bg-white p-5 rounded-xl w-[90%] max-w-sm">
           <h3 className="text-center font-bold mb-3">
-            Ingresa tu Player ID
+            Ingresa Player ID o telefono
           </h3>
 
           <input
             value={inputId}
-            onChange={(e)=>setInputId(e.target.value)}
+            onChange={(e)=>setInputId(e.target.value.replace(/\D/g, ""))}
             className="border p-2 w-full rounded mb-3"
+            placeholder="Ejemplo: 12345678"
           />
 
           <button
-            onClick={()=>{
-              localStorage.setItem("player_id", inputId)
-              setUserId(inputId)
-              showToast("Player ID guardado en cache", "success")
-            }}
+            onClick={resolverAccesoJugador}
+            disabled={buscandoJugador}
             className="bg-blue-600 text-white w-full py-2 rounded"
           >
-            Continuar
+            {buscandoJugador ? "Validando..." : "Continuar"}
           </button>
         </div>
       </div>
@@ -718,6 +836,37 @@ if(!esUuid(eventoActual?.id)) return
       <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-900">
         Contexto: {torneoActual?.nombre || "Sin torneo"} {" > "} {eventoActual?.fecha || "Sin evento"} {" > "} {rondaActual ? `Ronda ${rondaActual.numero_ronda}` : "Sin ronda"}
       </div>
+
+      {!esAdmin && (
+        <div className="mb-4 rounded-lg border border-indigo-100 bg-indigo-50 p-3">
+          <p className="text-sm text-indigo-900 mb-2">
+            Viendo pareos de: <span className="font-semibold">{jugadorVistaNombre || jugadorVistaId || userId}</span>
+          </p>
+          <div className="flex flex-col md:flex-row gap-2">
+            <input
+              value={filtroJugadorInput}
+              onChange={(e) => setFiltroJugadorInput(e.target.value.replace(/\D/g, ""))}
+              placeholder="Ver otro jugador (ID o telefono)"
+              className="border rounded px-3 py-2 flex-1 text-sm"
+            />
+            <button
+              onClick={consultarOtroJugador}
+              disabled={buscandoJugador}
+              className="bg-indigo-600 text-white px-3 py-2 rounded text-sm"
+            >
+              {buscandoJugador ? "Buscando..." : "Ver otro jugador"}
+            </button>
+            {normalizarId(jugadorVistaId) !== normalizarId(userId) && (
+              <button
+                onClick={volverAMisPareos}
+                className="bg-white border border-indigo-300 text-indigo-700 px-3 py-2 rounded text-sm"
+              >
+                Ver mis pareos
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="mb-4">
         <label className="block text-sm font-medium mb-2">Paso 1: Torneo</label>

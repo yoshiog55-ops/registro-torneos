@@ -66,6 +66,11 @@ setMensaje("Jugador encontrado")
 
 async function inscribir(){
 
+if(!jugador?.id){
+setMensaje("Primero busca y selecciona un jugador valido")
+return
+}
+
 if(torneos.length>1 && !torneoSeleccionado){
 
 setMensaje("Selecciona el torneo")
@@ -81,6 +86,11 @@ const {data:estado} = await supabase
 const late = !estado.registro_abierto
 
 const evento = await obtenerEventoActual(torneoSeleccionado || torneos[0]?.id)
+
+if(!evento?.id){
+setMensaje("No hay evento activo para este torneo. Solicita al admin crear uno.")
+return
+}
 
 const {error} = await supabase
 .from("inscripciones")
