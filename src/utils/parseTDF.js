@@ -18,17 +18,27 @@ export async function parseTDF(file){
 
     const matches = Array.from(matchesXML).map(m => {
 
-      const p1 = m.querySelector("player1")?.getAttribute("userid")
-      const p2 = m.querySelector("player2")?.getAttribute("userid")
-      const mesa = m.querySelector("tablenumber")?.textContent
-      const outcome = Number(m.getAttribute("outcome"))
+const outcome = Number(m.getAttribute("outcome") || 0)
 
-      return {
-        jugador1_id: p1,
-        jugador2_id: p2 || null, // 🔥 BYE: si no hay player2, es null
-        mesa: Number(mesa),
-        outcome // 1=p1 wins, 2=p2 wins, 3=draw
-      }
+const isBye = outcome === 5
+
+const p1 =
+  m.querySelector("player1")?.getAttribute("userid") ||
+  m.querySelector("player")?.getAttribute("userid") // ✅ BYE
+
+const p2 = isBye
+  ? null
+  : m.querySelector("player2")?.getAttribute("userid")
+
+const mesa = m.querySelector("tablenumber")?.textContent
+
+return {
+  jugador1_id: p1,
+  jugador2_id: p2,
+  mesa: isBye ? null : Number(mesa),
+  outcome,
+  isBye // 🔥 IMPORTANTE
+}
     })
 
     return {
@@ -89,7 +99,19 @@ export async function parseTDF(file){
         const p1 = match.jugador1_id
         const p2 = match.jugador2_id
 
-        if (!p1 || !p2) return // Skip BYEs
+// 🔥 ignorar matches sin resultado
+if (match.outcome === 0) return
+
+// 🔥 BYE = victoria automática
+if (match.outcome === 5) {
+  if (playerStats[p1]) {
+    playerStats[p1].wins++
+  }
+  return
+}
+
+// matches normales
+if (!p1 || !p2) return
 
         const p1Stat = playerStats[p1]
         const p2Stat = playerStats[p2]

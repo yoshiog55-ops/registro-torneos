@@ -1,7 +1,8 @@
 import { useState,useEffect } from "react"
 import { supabase } from "../supabase"
+import { obtenerEventoActual } from "../utils/evento"
 
-export default function ConsultaJugadores({ volver }){
+export default function ConsultaJugadores({ volver, torneoSeleccionado, eventoSeleccionado }){
     
 const [jugadores,setJugadores]=useState([])
 const [busqueda,setBusqueda]=useState("")
@@ -31,6 +32,11 @@ setJugadores(data)
 
 async function inscribirJugador(j){
 
+if(!torneoSeleccionado || torneoSeleccionado === "ALL"){
+  setMensaje("Selecciona un torneo específico para inscribir")
+  return
+}
+
 const today = new Date().toLocaleDateString("en-CA")
 
 const {data:estado}=await supabase
@@ -40,11 +46,18 @@ const {data:estado}=await supabase
 
 const late = !estado.registro_abierto
 
-const {data:existe}=await supabase
+let existeQuery = supabase
 .from("inscripciones")
 .select("id")
 .eq("jugador_id",j.id)
 .eq("fecha",today)
+.eq("torneo_id", torneoSeleccionado)
+
+if(eventoSeleccionado){
+  existeQuery = existeQuery.eq("evento_id", eventoSeleccionado)
+}
+
+const {data:existe}=await existeQuery
 
 if(existe.length>0){
 
@@ -53,12 +66,22 @@ return
 
 }
 
+let eventoIdFinal = eventoSeleccionado || null
+
+if(!eventoIdFinal){
+  const evento = await obtenerEventoActual(torneoSeleccionado)
+  eventoIdFinal = evento?.id || null
+}
+
 await supabase
 .from("inscripciones")
 .insert({
 
 jugador_id:j.id,
-late:late
+torneo_id: torneoSeleccionado,
+fecha: today,
+late:late,
+evento_id: eventoIdFinal
 
 })
 

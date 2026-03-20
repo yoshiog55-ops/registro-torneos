@@ -1,22 +1,32 @@
-export default function MatchCard({ match, onReport, esAdmin, userId }) {
+export default function MatchCard({ match, onReport, esAdmin, userId, reportando = false, rondaFinalizada = false }) {
 
-const user = String(userId || "").trim()
-const j1 = String(match.jugador1_id || "").trim()
-const j2 = String(match.jugador2_id || "").trim()
+const normalizarId = (valor) => {
+  if (valor === null || valor === undefined) return null
+  const limpio = String(valor).trim()
+  if (!limpio) return null
+  if (limpio.toLowerCase() === "null") return null
+  if (limpio.toLowerCase() === "undefined") return null
+  return limpio
+}
+
+const user = normalizarId(userId)
+const j1 = normalizarId(match.jugador1_id)
+const j2 = normalizarId(match.jugador2_id)
 
 // 🔥 BYE: si no hay jugador2
-const esBye = match.jugador2_id === null || match.jugador2_id === undefined
+const esBye = !j2
 
 const yaReporte =
-  (user === j1 && match.ganador_reportado_1) ||
-  (user === j2 && match.ganador_reportado_2)
+  (user === j1 && normalizarId(match.ganador_reportado_1)) ||
+  (user === j2 && normalizarId(match.ganador_reportado_2))
 
   const esJugador1 = user === j1
   const esJugador2 = user === j2
 
   const puedeReportar = esAdmin || esJugador1 || esJugador2
+  const bloqueadoPorEstado = rondaFinalizada || (esAdmin ? false : (yaReporte || match.confirmado))
 
-  const ganador = match.ganador_final
+  const ganador = normalizarId(match.ganador_final)
   const esEmpate = match.empate
 
   return (
@@ -54,7 +64,7 @@ const yaReporte =
       {/* JUGADOR 1 */}
       <div className={`text-center mb-2 ${ganador === j1 ? "font-bold text-green-600" : ""}`}>
         <p>{match.jugador1_nombre}</p>
-        <p className="text-xs text-gray-500">{match.jugador1_id}</p>
+        <p className="text-xs text-gray-500">{j1 || "-"}</p>
       </div>
 
       {esBye ? (
@@ -67,7 +77,7 @@ const yaReporte =
       {!esBye && (
       <div className={`text-center mb-3 ${ganador === j2 ? "font-bold text-green-600" : ""}`}>
         <p>{match.jugador2_nombre}</p>
-        <p className="text-xs text-gray-500">{match.jugador2_id}</p>
+        <p className="text-xs text-gray-500">{j2 || "-"}</p>
       </div>
       )}
 
@@ -86,8 +96,8 @@ const yaReporte =
 
   {/* ================= JUGADOR 1 ================= */}
   <button
-    disabled={yaReporte || match.confirmado || match.status === "finalizada"}
-    onClick={() => onReport(match, match.jugador1_id)}
+    disabled={reportando || bloqueadoPorEstado}
+    onClick={() => j1 && onReport(match, j1)}
     className={`flex-1 py-2 rounded border-2 transition font-semibold ${
       
       // 🟢 CONFIRMADO (relleno)
@@ -96,11 +106,11 @@ const yaReporte =
 
       // 🔴 CONFLICTO (borde rojo)
       : match.estado === "conflicto" &&
-        (match.ganador_reportado_1 === j1 || match.ganador_reportado_2 === j1)
+        (normalizarId(match.ganador_reportado_1) === j1 || normalizarId(match.ganador_reportado_2) === j1)
         ? "border-red-500 text-red-500"
 
       // 🟢 SELECCIONADO (solo borde)
-      : (match.ganador_reportado_1 === j1 || match.ganador_reportado_2 === j1)
+      : (normalizarId(match.ganador_reportado_1) === j1 || normalizarId(match.ganador_reportado_2) === j1)
         ? "border-green-600 text-green-600"
 
       // ⚫ DEFAULT
@@ -112,8 +122,8 @@ const yaReporte =
 
   {/* ================= JUGADOR 2 ================= */}
   <button
-   disabled={yaReporte || match.confirmado || match.status === "finalizada"}
-    onClick={() => onReport(match, match.jugador2_id)}
+   disabled={reportando || bloqueadoPorEstado}
+    onClick={() => j2 && onReport(match, j2)}
     className={`flex-1 py-2 rounded border-2 transition font-semibold ${
       
       // 🟢 CONFIRMADO
@@ -122,11 +132,11 @@ const yaReporte =
 
       // 🔴 CONFLICTO
       : match.estado === "conflicto" &&
-        (match.ganador_reportado_1 === j2 || match.ganador_reportado_2 === j2)
+        (normalizarId(match.ganador_reportado_1) === j2 || normalizarId(match.ganador_reportado_2) === j2)
         ? "border-red-500 text-red-500"
 
       // 🟢 SELECCIONADO
-      : (match.ganador_reportado_1 === j2 || match.ganador_reportado_2 === j2)
+      : (normalizarId(match.ganador_reportado_1) === j2 || normalizarId(match.ganador_reportado_2) === j2)
         ? "border-green-600 text-green-600"
 
       // ⚫ DEFAULT
@@ -140,7 +150,7 @@ const yaReporte =
 
 {/* ================= EMPATE ================= */}
 <button
- disabled={yaReporte || match.confirmado || match.status === "finalizada"}
+ disabled={reportando || bloqueadoPorEstado}
   onClick={() => onReport(match, "empate")}
   className={`w-full py-2 rounded border-2 mt-2 transition font-semibold ${
     
@@ -169,7 +179,7 @@ const yaReporte =
       {/* BYE CONFIRMADO */}
       {esBye && (
         <p className="text-center text-green-600 font-bold">
-          ✅ BYE - Victoria automática
+          ✅ BYE - Victoria automática para <span className="uppercase">{match.jugador1_nombre || "Desconocido"}</span>
         </p>
       )}
 
@@ -196,6 +206,12 @@ const yaReporte =
 {match.estado === "conflicto" && (
   <p className="text-center text-xs text-red-500 mt-2">
     ⚠️ Resultados diferentes, requiere revisión
+  </p>
+)}
+
+{reportando && (
+  <p className="text-center text-xs text-gray-500 mt-2">
+    Guardando resultado...
   </p>
 )}
 

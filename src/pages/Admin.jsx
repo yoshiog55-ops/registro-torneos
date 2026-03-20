@@ -2,7 +2,9 @@ import { useState,useEffect } from "react"
 import { supabase } from "../supabase"
 import ConsultaJugadores from "../components/ConsultaJugadores"
 import TorneosAdmin from "../components/TorneosAdmin"
-import SubirTDF from "../components/SubirTDF"
+import EventosHistorial from "../components/EventosHistorial"
+import AdminRondas from "./AdminRondas"
+import { obtenerEventos, crearEvento } from "../utils/evento"
 
 export default function Admin(){
 
@@ -19,6 +21,9 @@ const [busqueda,setBusqueda]=useState("")
 const [estado,setEstado]=useState(null)
 const [torneos,setTorneos] = useState([])
 const [torneoSeleccionado,setTorneoSeleccionado] = useState("ALL")
+const [eventos,setEventos] = useState([])
+const [eventoSeleccionado,setEventoSeleccionado] = useState("")
+const [nuevaFechaEvento,setNuevaFechaEvento] = useState(new Date().toISOString().split("T")[0])
 
 const [mostrarConfirmacion, setMostrarConfirmacion] = useState(false)
 const [jugadorAEliminar, setJugadorAEliminar] = useState(null)
@@ -224,6 +229,10 @@ async function cargarJugadores(){
     query = query.eq("torneo_id", torneoSeleccionado)
   }
 
+  if(torneoSeleccionado !== "ALL" && eventoSeleccionado){
+    query = query.eq("evento_id", eventoSeleccionado)
+  }
+
   const { data, error } = await query
 
   if(error){
@@ -297,6 +306,53 @@ cargarJugadores()
 }
 
 },[torneoSeleccionado])
+
+useEffect(() => {
+  if(!torneoSeleccionado || torneoSeleccionado === "ALL"){
+    setEventos([])
+    setEventoSeleccionado("")
+    return
+  }
+
+  cargarEventosPorTorneo()
+}, [torneoSeleccionado])
+
+useEffect(() => {
+  if(torneoSeleccionado){
+    cargarJugadores()
+  }
+}, [eventoSeleccionado])
+
+async function cargarEventosPorTorneo(){
+  if(!torneoSeleccionado || torneoSeleccionado === "ALL") return
+
+  const lista = await obtenerEventos(torneoSeleccionado)
+  setEventos(lista || [])
+
+  if((lista || []).length === 0){
+    setEventoSeleccionado("")
+    return
+  }
+
+  const actual = (lista || []).find(ev => String(ev.id) === String(eventoSeleccionado))
+  setEventoSeleccionado(String(actual?.id || lista[0].id))
+}
+
+async function crearEventoDesdeInscritos(){
+  if(!torneoSeleccionado || torneoSeleccionado === "ALL"){
+    setMensaje("Selecciona un torneo especifico para crear evento")
+    return
+  }
+
+  try{
+    const nuevo = await crearEvento(torneoSeleccionado, nuevaFechaEvento)
+    setMensaje("Evento creado correctamente")
+    await cargarEventosPorTorneo()
+    setEventoSeleccionado(String(nuevo.id))
+  }catch(error){
+    setMensaje("Error al crear evento: " + error.message)
+  }
+}
 
 const jugadoresFiltrados = jugadores.filter(j =>
 j.jugadores.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
@@ -411,7 +467,7 @@ Torneo
 </button>
 
 <button
-onClick={()=>{cambiarVista("jugadores"); cargarJugadoresDB()}}
+onClick={()=>{cambiarVista("jugadores"); cargarJugadoresDB(); if(torneoSeleccionado === "ALL" && torneos.length > 0) setTorneoSeleccionado(torneos[0].id)}}
 className="bg-gray-700 text-white px-4 py-2 rounded"
 >
 Jugadores
@@ -423,6 +479,13 @@ onClick={()=>cambiarVista("torneos")}
 className="bg-purple-700 text-white px-4 py-2 rounded"
 >
 Torneos
+</button>
+
+<button
+onClick={()=>cambiarVista("historial")}
+className="bg-amber-700 text-white px-4 py-2 rounded"
+>
+Historial
 </button>
 
 <button
@@ -496,6 +559,46 @@ onChange={(e)=>setTorneoSeleccionado(e.target.value)}
 </select>
 
 </div>
+
+{torneoSeleccionado !== "ALL" && (
+<div className="flex items-center gap-2">
+
+<label className="font-bold">
+Evento:
+</label>
+
+<select
+className="border p-2 rounded"
+value={eventoSeleccionado}
+onChange={(e)=>setEventoSeleccionado(e.target.value)}
+>
+
+<option value="">Todos / sin evento</option>
+
+{eventos.map(ev=>(
+  <option key={ev.id} value={ev.id}>
+    {ev.fecha}
+  </option>
+))}
+
+</select>
+
+<input
+type="date"
+value={nuevaFechaEvento}
+onChange={(e)=>setNuevaFechaEvento(e.target.value)}
+className="border p-2 rounded"
+/>
+
+<button
+onClick={crearEventoDesdeInscritos}
+className="bg-indigo-600 text-white px-3 py-2 rounded"
+>
+Crear evento
+</button>
+
+</div>
+)}
 
 <button
 onClick={cargarJugadores}
@@ -710,7 +813,11 @@ Quitar
 
 {vista==="jugadores" && (
 
-<ConsultaJugadores volver={()=>setVista("torneo")} />
+<ConsultaJugadores
+  volver={()=>setVista("torneo")}
+  torneoSeleccionado={torneoSeleccionado}
+  eventoSeleccionado={eventoSeleccionado}
+/>
 
 )}
 
@@ -720,22 +827,15 @@ Quitar
 
 )}
 
+{vista==="historial" && (
+
+<EventosHistorial />
+
+)}
+
 {vista==="rondas" && (
 
-<div>
-
-<h2 className="text-xl font-bold mb-4">
-Gestión de rondas
-</h2>
-
-<SubirTDF
-  torneo_id={
-    torneoSeleccionado !== "ALL"
-      ? torneoSeleccionado
-      : torneos[0]?.id || ""
-  }
-/>
-</div>
+<AdminRondas />
 
 )}
 
@@ -779,3 +879,4 @@ Gestión de rondas
 )
 
 }
+

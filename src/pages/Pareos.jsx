@@ -2,7 +2,23 @@ import { useEffect, useState } from "react"
 import { supabase } from "../supabase"
 import SelectorRonda from "../components/SelectorRonda"
 import MatchCard from "../components/MatchCard"
-import { obtenerEventoActual } from "../utils/evento"
+import { obtenerEventos } from "../utils/evento"
+
+const normalizarId = (valor) => {
+  if (valor === null || valor === undefined) return null
+  const limpio = String(valor).trim()
+  if (!limpio) return null
+  if (limpio.toLowerCase() === "null") return null
+  if (limpio.toLowerCase() === "undefined") return null
+  return limpio
+}
+
+const esUuid = (valor) => {
+  const limpio = normalizarId(valor)
+  if (!limpio) return false
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(limpio)
+}
+
 export default function Pareos() {
 
   const [rondas, setRondas] = useState([])
@@ -20,7 +36,11 @@ export default function Pareos() {
   const [tiempoRestante, setTiempoRestante] = useState(null)
   const [modo, setModo] = useState("rondas")
   const [eventoActual, setEventoActual] = useState(null)
-  const [torneoSeleccionado, setTorneoSeleccionado] = useState(null)
+  const [torneoSeleccionado, setTorneoSeleccionado] = useState("")
+  const [eventos, setEventos] = useState([])
+  const [eventoSeleccionado, setEventoSeleccionado] = useState("")
+  const [torneos, setTorneos] = useState([])
+  const [reportandoMatchId, setReportandoMatchId] = useState(null)
   // =========================
   // 🔐 INIT
   // =========================
@@ -41,26 +61,24 @@ const init = async () => {
     setUserId(saved)
   }
 
-const savedRonda = localStorage.getItem(`ronda_id_${torneoSeleccionado}`)
-  if(savedRonda){
-    setRondaSeleccionada(savedRonda)
-  }
-
-  // 🔥 obtener torneo activo
-  const { data: torneos } = await supabase
+  // 🔥 obtener torneos activos
+  const { data: torneosData } = await supabase
     .from("torneos")
     .select("*")
     .eq("activo", true)
 
-  if(torneos?.length > 0){
-    setTorneoSeleccionado(torneos[0].id)
+  const listaTorneos = torneosData || []
+  setTorneos(listaTorneos)
+
+  if(listaTorneos.length > 0){
+    const guardado = localStorage.getItem("pareos_torneo_id")
+    const existe = listaTorneos.find(t => String(t.id) === String(guardado))
+    const torneoInicial = existe ? existe.id : listaTorneos[0].id
+    setTorneoSeleccionado(String(torneoInicial))
   }
 
 }
 
-  // =========================
-  // 🔄 REFRESH
-  // =========================
   const refrescar = async () => {
     await cargarRondas()
 
@@ -71,21 +89,16 @@ const savedRonda = localStorage.getItem(`ronda_id_${torneoSeleccionado}`)
     }
   }
 
-  useEffect(() => {
-
-  if(!torneoSeleccionado) return
-
-  async function cargarEvento(){
-    const evento = await obtenerEventoActual(torneoSeleccionado)
-    setEventoActual(evento)
+  const recargarMatchesConRetry = async () => {
+    await cargarMatches()
+    setTimeout(() => {
+      if(modo === "rondas"){
+        cargarMatches()
+      }
+    }, 350)
   }
 
-  cargarEvento()
-
-}, [torneoSeleccionado])
-
 useEffect(() => {
-  if(!torneoSeleccionado) return
 
   // 🧹 limpiar TODO
   setRondas([])
@@ -95,8 +108,78 @@ useEffect(() => {
   setPendientes([])
   setModo("rondas")
   setEventoActual(null)
+  setEventos([])
+  setEventoSeleccionado("")
 
+  if(!torneoSeleccionado) return
+
+  async function cargarEventosPorTorneo(){
+    const lista = await obtenerEventos(torneoSeleccionado)
+    setEventos(lista)
+
+    if(lista.length === 0){
+      setEventoSeleccionado("")
+      setEventoActual(null)
+      return
+    }
+
+    const guardadoEvento = localStorage.getItem(`pareos_evento_id_${torneoSeleccionado}`)
+    const existeEvento = lista.find(ev => String(ev.id) === String(guardadoEvento))
+    const eventoInicial = existeEvento || lista[0]
+
+    setEventoSeleccionado(String(eventoInicial.id))
+    setEventoActual(eventoInicial)
+  }
+
+  cargarEventosPorTorneo()
 }, [torneoSeleccionado])
+
+useEffect(() => {
+  if(torneoSeleccionado){
+    localStorage.setItem("pareos_torneo_id", String(torneoSeleccionado))
+  }
+}, [torneoSeleccionado])
+
+useEffect(() => {
+  if(torneoSeleccionado && eventoSeleccionado){
+    localStorage.setItem(
+      `pareos_evento_id_${torneoSeleccionado}`,
+      String(eventoSeleccionado)
+    )
+  }
+}, [torneoSeleccionado, eventoSeleccionado])
+
+useEffect(() => {
+  const onDataUpdated = async (event) => {
+    const detail = event?.detail || {}
+    const torneoId = String(detail.torneo_id || "")
+    const eventoId = String(detail.evento_id || "")
+
+    if(torneoId && String(torneoSeleccionado) !== torneoId) return
+    if(eventoId && String(eventoSeleccionado) !== eventoId) return
+    if(!esUuid(eventoActual?.id)) return
+
+    await cargarRondas()
+    await recargarMatchesConRetry()
+    await cargarStandings()
+  }
+
+  window.addEventListener("torneo:data-updated", onDataUpdated)
+  return () => window.removeEventListener("torneo:data-updated", onDataUpdated)
+}, [torneoSeleccionado, eventoSeleccionado, eventoActual?.id, modo, rondaSeleccionada])
+
+useEffect(() => {
+  if(!eventoSeleccionado){
+    setEventoActual(null)
+    return
+  }
+
+  const seleccionado = eventos.find(
+    ev => String(ev.id) === String(eventoSeleccionado)
+  )
+
+  setEventoActual(seleccionado || null)
+}, [eventoSeleccionado, eventos])
 
 useEffect(() => {
   if(!eventoActual?.id) return
@@ -114,8 +197,8 @@ useEffect(() => {
 
 useEffect(() => {
 
-  if(!eventoActual) return
-  if(!rondaSeleccionada) return
+  if(!esUuid(eventoActual?.id)) return
+  if(!esUuid(rondaSeleccionada)) return
   if(modo !== "rondas") return
 
   cargarMatches()
@@ -126,7 +209,7 @@ useEffect(() => {
   // 📊 RONDAS
   // =========================
 const cargarRondas = async () => {
-  if(!eventoActual) return
+  if(!esUuid(eventoActual?.id)) return
 
   const { data } = await supabase
     .from("rondas")
@@ -137,6 +220,13 @@ const cargarRondas = async () => {
   const lista = data || []
 
   setRondas(lista)
+
+  if(lista.length === 0){
+    setRondaSeleccionada(null)
+    setMatches([])
+    setPendientes([])
+    return
+  }
 
   // 🔥 NUEVO: validar ronda seleccionada
   if(lista.length > 0){
@@ -192,13 +282,29 @@ const cargarRondas = async () => {
   // 📊 MATCHES
   // =========================
   const cargarMatches = async () => {
-if(!eventoActual) return
-    const { data } = await supabase
+    const eventoId = normalizarId(eventoActual?.id)
+    const rondaId = normalizarId(rondaSeleccionada)
+
+    if(!esUuid(eventoId) || !esUuid(rondaId)){
+      setMatches([])
+      setPendientes([])
+      return
+    }
+
+    const { data, error } = await supabase
       .from("matches")
       .select("*")
-      .eq("ronda_id", rondaSeleccionada)
-      .eq("evento_id", eventoActual.id)
+      .eq("ronda_id", rondaId)
+      .eq("evento_id", eventoId)
       .order("mesa", { ascending: true })
+
+    if(error){
+      console.error("Error en matches", error)
+      setMensaje(`❌ Error al cargar matches: ${error.message}`)
+      setMatches([])
+      setPendientes([])
+      return
+    }
 
     if(!data){
       setMatches([])
@@ -207,13 +313,23 @@ if(!eventoActual) return
     }
 
     const ids = [
-      ...new Set(data.flatMap(m => [m.jugador1_id, m.jugador2_id]))
+      ...new Set(
+        data
+          .flatMap(m => [m.jugador1_id, m.jugador2_id])
+          .map(normalizarId)
+          .filter(Boolean)
+      )
     ]
 
-    const { data: jugadores } = await supabase
-      .from("jugadores")
-      .select("player_id, nombre")
-      .in("player_id", ids)
+    let jugadores = []
+    if(ids.length > 0){
+      const { data: jugadoresData } = await supabase
+        .from("jugadores")
+        .select("player_id, nombre")
+        .in("player_id", ids)
+
+      jugadores = jugadoresData || []
+    }
 
     const mapa = {}
     jugadores?.forEach(j => {
@@ -222,8 +338,8 @@ if(!eventoActual) return
 
 let formateado = data.map(m => {
 
-  const j1 = String(m.jugador1_id)
-  const j2 = String(m.jugador2_id)
+  const j1 = normalizarId(m.jugador1_id)
+  const j2 = normalizarId(m.jugador2_id)
 
   const r1 = m.ganador_reportado_1
   const r2 = m.ganador_reportado_2
@@ -241,17 +357,17 @@ let formateado = data.map(m => {
   return {
     ...m,
     estado, // 🔥 NUEVO
-    jugador1_nombre: mapa[m.jugador1_id] || "Desconocido",
-    jugador2_nombre: mapa[m.jugador2_id] || "Desconocido"
+    jugador1_nombre: mapa[j1] || "Desconocido",
+    jugador2_nombre: j2 ? (mapa[j2] || "Desconocido") : "BYE"
   }
 })
 
-  const user = String(userId || "").trim()
+  const user = normalizarId(userId)
 
 if(!esAdmin && user){
   formateado = formateado.filter(m =>
-    String(m.jugador1_id).trim() === user ||
-    String(m.jugador2_id).trim() === user
+    normalizarId(m.jugador1_id) === user ||
+    normalizarId(m.jugador2_id) === user
   )
 }
 
@@ -326,8 +442,7 @@ if(!eventoActual) return
 
 useEffect(() => {
 
-  if(!eventoActual) return
-if(!eventoActual?.id) return
+if(!esUuid(eventoActual?.id)) return
   const channel = supabase
     .channel('matches-global')
     .on(
@@ -343,7 +458,7 @@ await cargarRondas()
 
 setTimeout(() => {
   if(modo === "rondas"){
-    cargarMatches()
+    recargarMatchesConRetry()
   }
 }, 300)
       }
@@ -358,8 +473,7 @@ setTimeout(() => {
 
 useEffect(() => {
 
-  if(!eventoActual) return
-if(!eventoActual?.id) return
+if(!esUuid(eventoActual?.id)) return
   const channel = supabase
     .channel('standings-changes')
     .on(
@@ -385,8 +499,7 @@ if(!eventoActual?.id) return
 
 useEffect(() => {
 
-  if(!eventoActual) return
-if(!eventoActual?.id) return
+if(!esUuid(eventoActual?.id)) return
   const channel = supabase
     .channel('rondas-changes')
     .on(
@@ -405,7 +518,7 @@ if(!eventoActual?.id) return
 
         // 🔥 CLAVE: recargar matches también
         if(modo === "rondas"){
-          await cargarMatches()
+          await recargarMatchesConRetry()
         }
 
       }
@@ -420,8 +533,7 @@ if(!eventoActual?.id) return
 
 useEffect(() => {
 
-  if(!eventoActual) return
-if(!eventoActual?.id) return
+if(!esUuid(eventoActual?.id)) return
   const channel = supabase
     .channel('matches-changes')
     .on(
@@ -437,7 +549,7 @@ if(!eventoActual?.id) return
         console.log("🔥 Cambio en matches detectado")
 
         if(modo === "rondas"){
-          await cargarMatches()
+          await recargarMatchesConRetry()
         }
 
       }
@@ -454,19 +566,26 @@ if(!eventoActual?.id) return
   // 🎯 REPORTAR
   // =========================
   const reportar = async (match, ganador) => {
+    setReportandoMatchId(match.id)
 
-    const user = String(userId || "").trim()
-    const j1 = String(match.jugador1_id).trim()
-    const j2 = String(match.jugador2_id).trim()
+    const user = normalizarId(userId)
+    const j1 = normalizarId(match.jugador1_id)
+    const j2 = normalizarId(match.jugador2_id)
+    const rondaActual = rondas.find(r => String(r.id) === String(rondaSeleccionada))
 
-    if(!esAdmin && user !== j1 && user !== j2){
-      setMensaje("❌ No puedes reportar este match")
+    if(rondaActual?.status === "finalizada"){
+      setMensaje("La ronda esta finalizada. Solo consulta.")
+      setReportandoMatchId(null)
       return
     }
 
-    // 🟡 EMPATE
-    if(ganador === "empate"){
+    if(!esAdmin && user !== j1 && user !== j2){
+      setMensaje("No puedes reportar este match")
+      setReportandoMatchId(null)
+      return
+    }
 
+    if(ganador === "empate"){
       if(esAdmin){
         await supabase.from("matches").update({
           empate: true,
@@ -476,7 +595,8 @@ if(!eventoActual?.id) return
           ganador_reportado_2: null
         }).eq("id", match.id)
 
-        cargarMatches()
+        await recargarMatchesConRetry()
+        setReportandoMatchId(null)
         return
       }
 
@@ -488,48 +608,67 @@ if(!eventoActual?.id) return
         ganador_reportado_2: null
       }).eq("id", match.id)
 
-      cargarMatches()
+      await recargarMatchesConRetry()
+      setReportandoMatchId(null)
       return
     }
 
-    // 🧑‍💼 ADMIN
+    const ganadorNormalizado = normalizarId(ganador)
+    if(!ganadorNormalizado){
+      setMensaje("Match invalido: player_id null en pareos. Revisa el TDF cargado.")
+      setReportandoMatchId(null)
+      return
+    }
+
     if(esAdmin){
       await supabase.from("matches").update({
-        ganador_final: ganador,
+        ganador_final: ganadorNormalizado,
         empate: false,
         confirmado: true,
-        ganador_reportado_1: ganador,
-        ganador_reportado_2: ganador
+        ganador_reportado_1: ganadorNormalizado,
+        ganador_reportado_2: ganadorNormalizado
       }).eq("id", match.id)
 
-      cargarMatches()
+      await recargarMatchesConRetry()
+      setReportandoMatchId(null)
       return
     }
 
-    // 👤 jugador
-    const campo =
-      user === j1
-        ? "ganador_reportado_1"
-        : "ganador_reportado_2"
+    const campo = user === j1 ? "ganador_reportado_1" : "ganador_reportado_2"
+
+    if(!campo){
+      setMensaje("No se pudo detectar el jugador que reporta.")
+      setReportandoMatchId(null)
+      return
+    }
+
+    setMatches(prev => prev.map(m => {
+      if(m.id !== match.id) return m
+      return {
+        ...m,
+        [campo]: ganadorNormalizado,
+        estado: "esperando"
+      }
+    }))
 
     await supabase.from("matches").update({
-      [campo]: ganador,
+      [campo]: ganadorNormalizado,
       empate: false
     }).eq("id", match.id)
 
     await actualizarConfirmacion(match.id)
 
-    cargarMatches()
+    await recargarMatchesConRetry()
+    setReportandoMatchId(null)
   }
 
   // =========================
-  // 📱 PLAYER ID MODAL
+  // PLAYER ID MODAL
   // =========================
   if(!esAdmin && !userId){
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
         <div className="bg-white p-5 rounded-xl w-[90%] max-w-sm">
-
           <h3 className="text-center font-bold mb-3">
             Ingresa tu Player ID
           </h3>
@@ -549,7 +688,6 @@ if(!eventoActual?.id) return
           >
             Continuar
           </button>
-
         </div>
       </div>
     )
@@ -557,53 +695,101 @@ if(!eventoActual?.id) return
 
   return (
     <div className="max-w-3xl mx-auto p-4">
-{modo === "rondas" && tiempoRestante && (
-  <div className="bg-black text-white text-center py-2 rounded mb-3">
-    ⏱️ {tiempoRestante}
-  </div>
-)}
-      <h2 className="text-xl font-bold mb-4">📊 Pareos</h2>
+      {modo === "rondas" && tiempoRestante && (
+        <div className="bg-black text-white text-center py-2 rounded mb-3">
+          {tiempoRestante}
+        </div>
+      )}
 
-<div className="flex gap-2 mb-4">
+      <h2 className="text-xl font-bold mb-4">Pareos</h2>
 
-  <button
-    onClick={()=>setModo("rondas")}
-    className={`px-3 py-2 rounded ${
-      modo === "rondas"
-        ? "bg-blue-600 text-white"
-        : "bg-gray-200"
-    }`}
-  >
-    Rondas
-  </button>
+      <div className="mb-4">
+        <label className="block text-sm font-medium mb-2">Torneo</label>
+        <select
+          value={torneoSeleccionado}
+          onChange={(e) => setTorneoSeleccionado(e.target.value)}
+          className="border p-2 rounded w-full"
+        >
+          <option value="">Seleccionar torneo</option>
+          {torneos.map(t => (
+            <option key={t.id} value={t.id}>{t.nombre}</option>
+          ))}
+        </select>
 
-  {standings.length > 0 && (
-    <button
-      onClick={()=>setModo("standings")}
-      className={`px-3 py-2 rounded ${
-        modo === "standings"
-          ? "bg-yellow-500 text-white"
-          : "bg-gray-200"
-      }`}
-    >
-      🏆 Standings
-    </button>
-  )}
+        {torneos.length > 1 && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {torneos.map(t => (
+              <button
+                key={`chip-${t.id}`}
+                onClick={() => setTorneoSeleccionado(String(t.id))}
+                className={`px-3 py-1 rounded-full text-sm border ${
+                  String(torneoSeleccionado) === String(t.id)
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white text-gray-700 border-gray-300"
+                }`}
+              >
+                {t.nombre}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
-</div>
+      <div className="mb-4">
+        <label className="block text-sm font-medium mb-2">Evento</label>
+        <select
+          value={eventoSeleccionado}
+          onChange={(e) => {
+            setEventoSeleccionado(e.target.value)
+          }}
+          className="border p-2 rounded w-full"
+          disabled={!torneoSeleccionado || eventos.length === 0}
+        >
+          <option value="">Seleccionar evento</option>
+          {eventos.map(e => (
+            <option key={e.id} value={String(e.id)}>
+              {e.fecha} - {new Date(e.fecha).toLocaleDateString("es-ES", { timeZone: "UTC" })}
+            </option>
+          ))}
+        </select>
+      </div>
 
-      {/* 🔄 REFRESH */}
+      <div className="flex gap-2 mb-4">
+        <button
+          onClick={()=>setModo("rondas")}
+          className={`px-3 py-2 rounded ${
+            modo === "rondas"
+              ? "bg-blue-600 text-white"
+              : "bg-gray-200"
+          }`}
+        >
+          Rondas
+        </button>
+
+        {standings.length > 0 && (
+          <button
+            onClick={()=>setModo("standings")}
+            className={`px-3 py-2 rounded ${
+              modo === "standings"
+                ? "bg-yellow-500 text-white"
+                : "bg-gray-200"
+            }`}
+          >
+            Standings
+          </button>
+        )}
+      </div>
+
       <button
         onClick={refrescar}
         className="bg-gray-700 text-white px-4 py-2 rounded mb-4 w-full"
       >
-        🔄 Refrescar
+        Refrescar
       </button>
 
-      {/* 🔥 PENDIENTES */}
       {pendientes.length > 0 && modo === "rondas" && (
         <div className="bg-yellow-100 p-3 rounded mb-3 text-center">
-          ⚠️ Tienes {pendientes.length} match(es) pendientes
+          Tienes {pendientes.length} match(es) pendientes
         </div>
       )}
 
@@ -613,31 +799,26 @@ if(!eventoActual?.id) return
         </div>
       )}
 
-      {/* 🏆 STANDINGS */}
       {modo === "standings" && standings.length > 0 && (
         <div className="bg-white p-4 rounded shadow">
-
-          <h3 className="font-bold mb-3">🏆 Standings</h3>
-
+          <h3 className="font-bold mb-3">Standings</h3>
           {standings.map(s => (
             <div key={s.player_id} className="flex justify-between border-b py-2">
               <span className="w-8 font-bold">#{s.posicion}</span>
               <span className="flex-1">{s.nombre}</span>
             </div>
           ))}
-
         </div>
       )}
 
-      {modo === "sin_datos" && (
-  <div className="bg-white p-6 rounded shadow text-center">
-    📭 Aún no existen pareos para este torneo
-  </div>
-)}
-
-      {/* 🎮 RONDAS */}
       {modo === "rondas" && (
         <>
+          {rondas.find(r => String(r.id) === String(rondaSeleccionada))?.status === "finalizada" && (
+            <div className="bg-gray-100 text-gray-700 text-center p-2 rounded mt-2">
+              Ronda finalizada: vista de solo consulta.
+            </div>
+          )}
+
           <SelectorRonda
             rondas={rondas}
             rondaSeleccionada={rondaSeleccionada}
@@ -646,7 +827,7 @@ if(!eventoActual?.id) return
 
           {matches.length === 0 ? (
             <div className="bg-white p-6 rounded shadow text-center mt-4">
-              ⏳ Sin pareos
+              Sin pareos
             </div>
           ) : (
             <div className="space-y-3 mt-4">
@@ -657,13 +838,14 @@ if(!eventoActual?.id) return
                   onReport={reportar}
                   esAdmin={esAdmin}
                   userId={userId}
+                  reportando={reportandoMatchId === m.id}
+                  rondaFinalizada={rondas.find(r => String(r.id) === String(rondaSeleccionada))?.status === "finalizada"}
                 />
               ))}
             </div>
           )}
         </>
       )}
-
     </div>
   )
 }
