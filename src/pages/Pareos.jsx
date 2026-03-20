@@ -720,28 +720,21 @@ if(!esUuid(eventoActual?.id)) return
       </div>
 
       <div className="mb-4">
-        <label className="block text-sm font-medium mb-2">Torneo</label>
-        <select
-          value={torneoSeleccionado}
-          onChange={(e) => setTorneoSeleccionado(e.target.value)}
-          className="border p-2 rounded w-full"
-        >
-          <option value="">Seleccionar torneo</option>
-          {torneos.map(t => (
-            <option key={t.id} value={t.id}>{t.nombre}</option>
-          ))}
-        </select>
-
-        {torneos.length > 1 && (
-          <div className="mt-2 flex flex-wrap gap-2">
+        <label className="block text-sm font-medium mb-2">Paso 1: Torneo</label>
+        {torneos.length === 0 ? (
+          <div className="border rounded p-3 text-sm text-gray-500 bg-white">
+            No hay torneos activos.
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
             {torneos.map(t => (
               <button
                 key={`chip-${t.id}`}
                 onClick={() => setTorneoSeleccionado(String(t.id))}
-                className={`px-3 py-1 rounded-full text-sm border ${
+                className={`px-3 py-2 rounded-full text-sm border transition ${
                   String(torneoSeleccionado) === String(t.id)
                     ? "bg-blue-600 text-white border-blue-600"
-                    : "bg-white text-gray-700 border-gray-300"
+                    : "bg-white text-gray-700 border-gray-300 hover:border-blue-400"
                 }`}
               >
                 {t.nombre}
@@ -752,22 +745,32 @@ if(!esUuid(eventoActual?.id)) return
       </div>
 
       <div className="mb-4">
-        <label className="block text-sm font-medium mb-2">Evento</label>
-        <select
-          value={eventoSeleccionado}
-          onChange={(e) => {
-            setEventoSeleccionado(e.target.value)
-          }}
-          className="border p-2 rounded w-full"
-          disabled={!torneoSeleccionado || eventos.length === 0}
-        >
-          <option value="">Seleccionar evento</option>
-          {eventos.map(e => (
-            <option key={e.id} value={String(e.id)}>
-              {e.fecha} - {new Date(e.fecha).toLocaleDateString("es-ES", { timeZone: "UTC" })}
-            </option>
-          ))}
-        </select>
+        <label className="block text-sm font-medium mb-2">Paso 2: Evento</label>
+        {!torneoSeleccionado ? (
+          <div className="border rounded p-3 text-sm text-gray-500 bg-white">
+            Selecciona un torneo para ver sus eventos.
+          </div>
+        ) : eventos.length === 0 ? (
+          <div className="border rounded p-3 text-sm text-gray-500 bg-white">
+            Este torneo no tiene eventos disponibles.
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {eventos.map(e => (
+              <button
+                key={`evento-chip-${e.id}`}
+                onClick={() => setEventoSeleccionado(String(e.id))}
+                className={`px-3 py-2 rounded-full text-sm border transition ${
+                  String(eventoSeleccionado) === String(e.id)
+                    ? "bg-slate-800 text-white border-slate-800"
+                    : "bg-white text-gray-700 border-gray-300 hover:border-slate-400"
+                }`}
+              >
+                {new Date(e.fecha).toLocaleDateString("es-ES", { timeZone: "UTC" })}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="flex gap-2 mb-4">
