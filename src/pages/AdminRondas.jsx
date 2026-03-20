@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 import { supabase } from "../supabase"
 import SubirTDF from "../components/SubirTDF"
 import { obtenerEventos } from "../utils/evento"
+import { showToast } from "../utils/toast"
 
 function estadoDeMatch(match) {
   const r1 = match.ganador_reportado_1
@@ -31,11 +32,27 @@ export default function AdminRondas() {
   const [mensaje, setMensaje] = useState("")
   const [cargando, setCargando] = useState(false)
   const [vista, setVista] = useState("pareos")
+  const [filtroEstado, setFiltroEstado] = useState("todos")
 
   const eventoActual = useMemo(
     () => eventos.find(ev => String(ev.id) === String(eventoSeleccionado)) || null,
     [eventos, eventoSeleccionado]
   )
+  const torneoActual = useMemo(
+    () => torneos.find(t => String(t.id) === String(torneoSeleccionado)) || null,
+    [torneos, torneoSeleccionado]
+  )
+  const rondaActual = useMemo(
+    () => rondas.find(r => String(r.id) === String(rondaSeleccionada)) || null,
+    [rondas, rondaSeleccionada]
+  )
+  const matchesFiltrados = useMemo(() => {
+    if (filtroEstado === "todos") return matches
+    return matches.filter(match => {
+      const estado = String(match.estado || "").toLowerCase()
+      return estado === filtroEstado
+    })
+  }, [matches, filtroEstado])
 
   useEffect(() => {
     cargarTorneos()
@@ -63,6 +80,7 @@ export default function AdminRondas() {
   useEffect(() => {
     setMatches([])
     setStats(null)
+    setFiltroEstado("todos")
 
     if (!rondaSeleccionada) return
     cargarDetalleRonda()
@@ -269,6 +287,7 @@ export default function AdminRondas() {
     const rondaActual = rondas.find(r => String(r.id) === String(rondaSeleccionada))
     if(rondaActual?.status === "finalizada"){
       setMensaje("La ronda ya finalizo y solo permite consulta.")
+      showToast("La ronda ya esta finalizada. Solo consulta.", "warning")
       return
     }
 
@@ -285,6 +304,7 @@ export default function AdminRondas() {
         .eq("id", match.id)
 
       await cargarDetalleRonda()
+      showToast("Resultado guardado", "success")
       return
     }
 
@@ -300,6 +320,7 @@ export default function AdminRondas() {
       .eq("id", match.id)
 
     await cargarDetalleRonda()
+    showToast("Resultado guardado", "success")
   }
 
   const finalizarRonda = async () => {
@@ -308,6 +329,7 @@ export default function AdminRondas() {
 
     if (rondaActual?.status === "finalizada") {
       setMensaje("La ronda seleccionada ya estaba finalizada.")
+      showToast("La ronda seleccionada ya estaba finalizada", "warning")
       return
     }
 
@@ -331,6 +353,7 @@ export default function AdminRondas() {
       .eq("id", rondaSeleccionada)
 
     setMensaje("Ronda finalizada correctamente.")
+    showToast("Ronda finalizada correctamente", "success")
     await cargarRondas()
     await cargarDetalleRonda()
   }
@@ -395,6 +418,10 @@ export default function AdminRondas() {
           </p>
         )}
 
+        <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+          Contexto: {torneoActual?.nombre || "Sin torneo"} {" > "} {eventoActual?.fecha || "Sin evento"} {" > "} {rondaActual ? `Ronda ${rondaActual.numero_ronda}` : "Sin ronda"}
+        </div>
+
         <div className="flex gap-2 mb-4">
           <button
             onClick={() => setVista("pareos")}
@@ -427,7 +454,7 @@ export default function AdminRondas() {
                   : "bg-white border-gray-300 text-gray-700"
               }`}
             >
-              R{r.numero_ronda} {r.status === "activa" ? "(Activa)" : ""}
+              R{r.numero_ronda} {r.status === "activa" ? "[Activa]" : "[Finalizada]"}
             </button>
           ))}
         </div>
@@ -470,6 +497,29 @@ export default function AdminRondas() {
         )}
 
         {vista === "pareos" && matches.length > 0 && (
+          <>
+          <div className="mb-3 flex flex-wrap gap-2">
+            {[
+              { id: "todos", label: "Todos" },
+              { id: "pendiente", label: "Pendientes" },
+              { id: "esperando rival", label: "Esperando" },
+              { id: "conflicto", label: "Conflictos" },
+              { id: "confirmado", label: "Confirmados" }
+            ].map(opcion => (
+              <button
+                key={opcion.id}
+                onClick={() => setFiltroEstado(opcion.id)}
+                className={`px-3 py-1 rounded-full border text-xs font-semibold ${
+                  filtroEstado === opcion.id
+                    ? "bg-slate-800 text-white border-slate-800"
+                    : "bg-white text-slate-700 border-slate-300"
+                }`}
+              >
+                {opcion.label}
+              </button>
+            ))}
+          </div>
+
           <div className="overflow-x-auto">
             <table className="w-full min-w-[680px] text-sm">
               <thead>
@@ -482,7 +532,7 @@ export default function AdminRondas() {
                 </tr>
               </thead>
               <tbody>
-                {matches.map(match => (
+                {matchesFiltrados.map(match => (
                   <tr key={match.id} className="border-b last:border-b-0">
                     <td className="py-2 pr-2 font-semibold">#{match.mesa}</td>
                     <td className="py-2 pr-2">{match.jugador1_nombre}</td>
@@ -524,12 +574,32 @@ export default function AdminRondas() {
                         </button>
                       </div>
                     </td>
-                    <td className="py-2 font-medium">{match.estado}</td>
+                    <td className="py-2 font-medium">
+                      <span
+                        className={`inline-flex px-2 py-1 rounded-full text-xs font-semibold ${
+                          match.estado === "Confirmado"
+                            ? "bg-green-100 text-green-700"
+                            : match.estado === "Conflicto"
+                              ? "bg-red-100 text-red-700"
+                              : match.estado === "Esperando rival"
+                                ? "bg-blue-100 text-blue-700"
+                                : "bg-amber-100 text-amber-700"
+                        }`}
+                      >
+                        {match.estado}
+                      </span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          {matchesFiltrados.length === 0 && (
+            <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-600">
+              No hay matches para el filtro seleccionado.
+            </div>
+          )}
+          </>
         )}
 
         {vista === "standings" && (

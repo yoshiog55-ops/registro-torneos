@@ -3,6 +3,7 @@ import { supabase } from "../supabase"
 import SelectorRonda from "../components/SelectorRonda"
 import MatchCard from "../components/MatchCard"
 import { obtenerEventos } from "../utils/evento"
+import { showToast } from "../utils/toast"
 
 const normalizarId = (valor) => {
   if (valor === null || valor === undefined) return null
@@ -41,6 +42,8 @@ export default function Pareos() {
   const [eventoSeleccionado, setEventoSeleccionado] = useState("")
   const [torneos, setTorneos] = useState([])
   const [reportandoMatchId, setReportandoMatchId] = useState(null)
+  const torneoActual = torneos.find(t => String(t.id) === String(torneoSeleccionado)) || null
+  const rondaActual = rondas.find(r => String(r.id) === String(rondaSeleccionada)) || null
   // =========================
   // 🔐 INIT
   // =========================
@@ -575,12 +578,14 @@ if(!esUuid(eventoActual?.id)) return
 
     if(rondaActual?.status === "finalizada"){
       setMensaje("La ronda esta finalizada. Solo consulta.")
+      showToast("La ronda esta finalizada. Solo consulta.", "warning")
       setReportandoMatchId(null)
       return
     }
 
     if(!esAdmin && user !== j1 && user !== j2){
       setMensaje("No puedes reportar este match")
+      showToast("No puedes reportar este match", "error")
       setReportandoMatchId(null)
       return
     }
@@ -596,6 +601,7 @@ if(!esUuid(eventoActual?.id)) return
         }).eq("id", match.id)
 
         await recargarMatchesConRetry()
+        showToast("Resultado actualizado por administrador", "success")
         setReportandoMatchId(null)
         return
       }
@@ -609,6 +615,7 @@ if(!esUuid(eventoActual?.id)) return
       }).eq("id", match.id)
 
       await recargarMatchesConRetry()
+      showToast("Empate reportado, esperando confirmacion", "info")
       setReportandoMatchId(null)
       return
     }
@@ -616,6 +623,7 @@ if(!esUuid(eventoActual?.id)) return
     const ganadorNormalizado = normalizarId(ganador)
     if(!ganadorNormalizado){
       setMensaje("Match invalido: player_id null en pareos. Revisa el TDF cargado.")
+      showToast("Match invalido: player_id nulo", "error")
       setReportandoMatchId(null)
       return
     }
@@ -630,6 +638,7 @@ if(!esUuid(eventoActual?.id)) return
       }).eq("id", match.id)
 
       await recargarMatchesConRetry()
+      showToast("Resultado actualizado por administrador", "success")
       setReportandoMatchId(null)
       return
     }
@@ -638,6 +647,7 @@ if(!esUuid(eventoActual?.id)) return
 
     if(!campo){
       setMensaje("No se pudo detectar el jugador que reporta.")
+      showToast("No se pudo detectar el jugador que reporta", "error")
       setReportandoMatchId(null)
       return
     }
@@ -659,6 +669,7 @@ if(!esUuid(eventoActual?.id)) return
     await actualizarConfirmacion(match.id)
 
     await recargarMatchesConRetry()
+    showToast("Resultado reportado correctamente", "success")
     setReportandoMatchId(null)
   }
 
@@ -683,6 +694,7 @@ if(!esUuid(eventoActual?.id)) return
             onClick={()=>{
               localStorage.setItem("player_id", inputId)
               setUserId(inputId)
+              showToast("Player ID guardado en cache", "success")
             }}
             className="bg-blue-600 text-white w-full py-2 rounded"
           >
@@ -702,6 +714,10 @@ if(!esUuid(eventoActual?.id)) return
       )}
 
       <h2 className="text-xl font-bold mb-4">Pareos</h2>
+
+      <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+        Contexto: {torneoActual?.nombre || "Sin torneo"} {" > "} {eventoActual?.fecha || "Sin evento"} {" > "} {rondaActual ? `Ronda ${rondaActual.numero_ronda}` : "Sin ronda"}
+      </div>
 
       <div className="mb-4">
         <label className="block text-sm font-medium mb-2">Torneo</label>

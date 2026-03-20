@@ -3,6 +3,7 @@ import { parseTDF } from "../utils/parseTDF"
 import { guardarRonda } from "../service/rondasService"
 import { supabase } from "../supabase"
 import { obtenerEventos, crearEvento } from "../utils/evento"
+import { showToast } from "../utils/toast"
 
 export default function SubirTDF() {
   const [torneos, setTorneos] = useState([])
@@ -82,9 +83,11 @@ export default function SubirTDF() {
       setEventos(prev => [nuevo, ...prev])
       setEventoSeleccionado(nuevo.id)
       setMensaje("Evento creado exitosamente")
+      showToast("Evento creado exitosamente", "success")
       notificarActualizacion("evento_creado", torneoSeleccionado, nuevo.id)
     } catch (error) {
       setMensaje("Error al crear evento: " + error.message)
+      showToast("No se pudo crear el evento", "error")
     }
   }
 
@@ -236,6 +239,7 @@ export default function SubirTDF() {
   const subirRonda = async (rondaIndex) => {
     if (!eventoSeleccionado) {
       setMensaje("Selecciona un evento primero")
+      showToast("Selecciona un evento primero", "warning")
       return
     }
 
@@ -244,10 +248,37 @@ export default function SubirTDF() {
       const ronda = preview.rounds[rondaIndex]
       await guardarRonda(eventoSeleccionado, ronda)
       setMensaje("Ronda subida exitosamente")
+      showToast(`Ronda ${ronda.numero} subida exitosamente`, "success")
       await cargarRondas()
       notificarActualizacion("ronda_subida")
     } catch (error) {
-      setMensaje("Error: " + error.message)
+      if (error?.message === "CONFIRM_REPLACE_FINALIZADA") {
+        const ronda = preview.rounds[rondaIndex]
+        const confirmarReemplazo = window.confirm(
+          `La ronda ${ronda.numero} ya estaba finalizada. Quieres reemplazarla con la version del archivo TDF?`
+        )
+
+        if (!confirmarReemplazo) {
+          setMensaje("Se cancelo el reemplazo de la ronda finalizada.")
+          showToast("Reemplazo cancelado", "warning")
+          setLoading(false)
+          return
+        }
+
+        try {
+          await guardarRonda(eventoSeleccionado, ronda, { forzarReemplazoFinalizada: true })
+          setMensaje(`Ronda ${ronda.numero} reemplazada exitosamente.`)
+          showToast(`Ronda ${ronda.numero} reemplazada`, "success")
+          await cargarRondas()
+          notificarActualizacion("ronda_reemplazada")
+        } catch (errorReemplazo) {
+          setMensaje("Error al reemplazar ronda: " + errorReemplazo.message)
+          showToast("No se pudo reemplazar la ronda", "error")
+        }
+      } else {
+        setMensaje("Error: " + error.message)
+        showToast(`Error al subir ronda: ${error.message}`, "error")
+      }
     }
     setLoading(false)
   }
@@ -258,24 +289,93 @@ export default function SubirTDF() {
   const subirStandings = async () => {
     if (!eventoSeleccionado) {
       setMensaje("Selecciona un evento primero")
+      showToast("Selecciona un evento primero", "warning")
       return
     }
 
     setLoading(true)
     try {
-      const standingsInsert = preview.standings.map(s => ({
+      const nuevosStandings = (preview?.standings || []).map(s => ({
         torneo_id: torneoSeleccionado,
         player_id: s.player_id,
         posicion: s.posicion,
         evento_id: eventoSeleccionado
       }))
 
-      await supabase.from("standings").insert(standingsInsert)
+      const { data: existentes, error: errorExistentes } = await supabase
+        .from("standings")
+        .select("id, player_id")
+        .eq("evento_id", eventoSeleccionado)
+
+      if (errorExistentes) {
+        throw errorExistentes
+      }
+
+      const mapaExistentes = new Map(
+        (existentes || []).map(item => [String(item.player_id), item.id])
+      )
+      const mapaNuevos = new Map(
+        nuevosStandings.map(item => [String(item.player_id), item])
+      )
+
+      const playerIdsAEliminar = (existentes || [])
+        .map(item => String(item.player_id))
+        .filter(playerId => !mapaNuevos.has(playerId))
+
+      if (playerIdsAEliminar.length > 0) {
+        const { error: errorDelete } = await supabase
+          .from("standings")
+          .delete()
+          .eq("evento_id", eventoSeleccionado)
+          .in("player_id", playerIdsAEliminar)
+
+        if (errorDelete) {
+          throw errorDelete
+        }
+      }
+
+      const updates = []
+      const inserts = []
+
+      nuevosStandings.forEach(item => {
+        const standingId = mapaExistentes.get(String(item.player_id))
+        if (standingId) {
+          updates.push(
+            supabase
+              .from("standings")
+              .update({
+                posicion: item.posicion,
+                torneo_id: item.torneo_id
+              })
+              .eq("id", standingId)
+          )
+        } else {
+          inserts.push(item)
+        }
+      })
+
+      if (updates.length > 0) {
+        const resultadosUpdates = await Promise.all(updates)
+        const updateConError = resultadosUpdates.find(r => r.error)
+        if (updateConError?.error) {
+          throw updateConError.error
+        }
+      }
+
+      if (inserts.length > 0) {
+        const { error: errorInsert } = await supabase.from("standings").insert(inserts)
+        if (errorInsert) {
+          throw errorInsert
+        }
+      }
+
       setMensaje("Standings subidos exitosamente")
+      showToast("Standings sincronizados correctamente", "success")
       await cargarStandings()
       notificarActualizacion("standings_subidos")
     } catch (error) {
       setMensaje("Error: " + error.message)
+      showToast(`Error al subir standings: ${error.message}`, "error")
     }
     setLoading(false)
   }

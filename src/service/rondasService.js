@@ -1,6 +1,8 @@
 import { supabase } from "../supabase"
 
-export const guardarRonda = async (evento_id, ronda) => {
+export const guardarRonda = async (evento_id, ronda, opciones = {}) => {
+  const { forzarReemplazoFinalizada = false } = opciones
+
   // 🚫 validar ronda activa
   const { data: activa } = await supabase
     .from("rondas")
@@ -37,11 +39,16 @@ export const guardarRonda = async (evento_id, ronda) => {
   // 🔁 reemplazar si es misma ronda
   const { data: existente } = await supabase
     .from("rondas")
-    .select("id")
+    .select("id, status")
     .eq("evento_id", evento_id)
     .eq("numero_ronda", ronda.numero)
 
   if (existente.length > 0) {
+    const rondaExistente = existente[0]
+    if (rondaExistente.status === "finalizada" && !forzarReemplazoFinalizada) {
+      throw new Error("CONFIRM_REPLACE_FINALIZADA")
+    }
+
     const rondaId = existente[0].id
     await supabase.from("matches").delete().eq("ronda_id", rondaId)
     await supabase.from("rondas").delete().eq("id", rondaId)

@@ -5,6 +5,7 @@ import TorneosAdmin from "../components/TorneosAdmin"
 import EventosHistorial from "../components/EventosHistorial"
 import AdminRondas from "./AdminRondas"
 import { obtenerEventos, crearEvento } from "../utils/evento"
+import { showToast } from "../utils/toast"
 
 export default function Admin(){
 
@@ -341,16 +342,19 @@ async function cargarEventosPorTorneo(){
 async function crearEventoDesdeInscritos(){
   if(!torneoSeleccionado || torneoSeleccionado === "ALL"){
     setMensaje("Selecciona un torneo especifico para crear evento")
+    showToast("Selecciona un torneo especifico para crear evento", "warning")
     return
   }
 
   try{
     const nuevo = await crearEvento(torneoSeleccionado, nuevaFechaEvento)
     setMensaje("Evento creado correctamente")
+    showToast("Evento creado correctamente", "success")
     await cargarEventosPorTorneo()
     setEventoSeleccionado(String(nuevo.id))
   }catch(error){
     setMensaje("Error al crear evento: " + error.message)
+    showToast("Error al crear evento", "error")
   }
 }
 
