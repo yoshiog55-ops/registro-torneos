@@ -20,7 +20,14 @@ export function esEventoArchivado(eventoId) {
   return Boolean(mapa[String(eventoId)])
 }
 
-export function setEventoArchivado(eventoId, archivado) {
+export function resolverEventoArchivado(evento) {
+  if (evento && typeof evento === "object" && "archivado" in evento) {
+    return Boolean(evento.archivado)
+  }
+  return esEventoArchivado(evento?.id ?? evento)
+}
+
+export async function setEventoArchivado(eventoId, archivado) {
   const mapa = leerMapaArchivados()
   const key = String(eventoId)
   if (archivado) {
@@ -29,6 +36,18 @@ export function setEventoArchivado(eventoId, archivado) {
     delete mapa[key]
   }
   guardarMapaArchivados(mapa)
+
+  const { error } = await supabase
+    .from("eventos")
+    .update({ archivado })
+    .eq("id", eventoId)
+
+  if (error) {
+    console.warn("No se pudo persistir archivado en BD, usando respaldo local.", error.message)
+    return false
+  }
+
+  return true
 }
 
 export async function obtenerEventos(torneo_id, opciones = {}) {
@@ -41,7 +60,7 @@ export async function obtenerEventos(torneo_id, opciones = {}) {
 
   const lista = data || []
   if (includeArchivados) return lista
-  return lista.filter(ev => !esEventoArchivado(ev.id))
+  return lista.filter(ev => !resolverEventoArchivado(ev))
 }
 
 export async function obtenerEventoActual(torneo_id) {

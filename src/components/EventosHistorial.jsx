@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { supabase } from "../supabase"
-import { esEventoArchivado, obtenerEventos, setEventoArchivado } from "../utils/evento"
+import { obtenerEventos, resolverEventoArchivado, setEventoArchivado } from "../utils/evento"
 
 export default function EventosHistorial() {
   const [torneos, setTorneos] = useState([])
@@ -26,15 +26,19 @@ export default function EventosHistorial() {
     const lista = await obtenerEventos(torneoSeleccionado, { includeArchivados: true })
     const enriquecidos = lista.map(ev => ({
       ...ev,
-      archivado: esEventoArchivado(ev.id)
+      archivado: resolverEventoArchivado(ev)
     }))
     setEventos(enriquecidos)
   }
 
   async function toggleArchivado(evento) {
-    setEventoArchivado(evento.id, !evento.archivado)
+    const persistido = await setEventoArchivado(evento.id, !evento.archivado)
     await cargarEventos()
-    setMensaje(evento.archivado ? "Evento restaurado." : "Evento archivado.")
+    setMensaje(
+      persistido
+        ? (evento.archivado ? "Evento restaurado." : "Evento archivado.")
+        : "Se actualizo solo en este navegador. Revisa si falta la columna archivado en la tabla eventos."
+    )
 
     window.dispatchEvent(
       new CustomEvent("torneo:data-updated", {
