@@ -31,6 +31,16 @@ export default function MatchCard({
 
   const ganador = normalizarId(match.ganador_final)
   const esEmpate = match.empate
+  const reporte1 = normalizarId(match.ganador_reportado_1)
+  const reporte2 = normalizarId(match.ganador_reportado_2)
+
+  const resolverEtiquetaReporte = (reporte) => {
+    if (!reporte && !match.empate) return "Sin reporte"
+    if (match.empate && !reporte1 && !reporte2) return "Empate"
+    if (reporte === j1) return match.jugador1_nombre
+    if (reporte === j2) return match.jugador2_nombre
+    return "Empate"
+  }
 
   const resolver = (resultado) => {
     onReport(match, resultado)
@@ -174,6 +184,23 @@ export default function MatchCard({
         <p className="text-center text-xs text-red-500 mt-2">
           Resultados diferentes, requiere revision
         </p>
+      )}
+
+      {esAdmin && !match.confirmado && (
+        <div className="mt-3 grid grid-cols-1 gap-2 text-xs">
+          <div className={`rounded-lg border px-3 py-2 ${
+            reporte1 ? "border-blue-300 bg-blue-50 text-blue-800" : "border-gray-200 bg-gray-50 text-gray-500"
+          }`}>
+            Jugador 1 reporto: {resolverEtiquetaReporte(reporte1)}
+          </div>
+          {!esBye && (
+            <div className={`rounded-lg border px-3 py-2 ${
+              reporte2 ? "border-indigo-300 bg-indigo-50 text-indigo-800" : "border-gray-200 bg-gray-50 text-gray-500"
+            }`}>
+              Jugador 2 reporto: {resolverEtiquetaReporte(reporte2)}
+            </div>
+          )}
+        </div>
       )}
 
       {reportando && (

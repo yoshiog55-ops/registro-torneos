@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { supabase } from "../supabase"
 import SelectorRonda from "../components/SelectorRonda"
 import MatchCard from "../components/MatchCard"
@@ -46,6 +46,20 @@ export default function Pareos() {
   const [eventoSeleccionado, setEventoSeleccionado] = useState("")
   const [torneos, setTorneos] = useState([])
   const [reportandoMatchId, setReportandoMatchId] = useState(null)
+  const [permisoNotificaciones, setPermisoNotificaciones] = useState(
+    typeof window !== "undefined" && "Notification" in window
+      ? window.Notification.permission
+      : "unsupported"
+  )
+  const rondaSeleccionadaRef = useRef(null)
+  const permisoNotificacionesRef = useRef(
+    typeof window !== "undefined" && "Notification" in window
+      ? window.Notification.permission
+      : "unsupported"
+  )
+  const audioContextRef = useRef(null)
+  const ultimaRondaNotificadaRef = useRef(null)
+  const adminRondaListaNotificadaRef = useRef(null)
   const torneoActual = torneos.find(t => String(t.id) === String(torneoSeleccionado)) || null
   const rondaActual = rondas.find(r => String(r.id) === String(rondaSeleccionada)) || null
   // =========================
@@ -88,6 +102,73 @@ const init = async () => {
 
 }
 
+const reproducirAvisoSonoro = () => {
+  if(typeof window === "undefined") return
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext
+  if(!AudioContextClass) return
+
+  try{
+    if(!audioContextRef.current){
+      audioContextRef.current = new AudioContextClass()
+    }
+
+    const context = audioContextRef.current
+    if(context.state === "suspended"){
+      context.resume().catch(() => {})
+    }
+
+    const oscillator = context.createOscillator()
+    const gain = context.createGain()
+    const now = context.currentTime
+
+    oscillator.type = "sine"
+    oscillator.frequency.setValueAtTime(880, now)
+    oscillator.frequency.setValueAtTime(1174, now + 0.12)
+
+    gain.gain.setValueAtTime(0.0001, now)
+    gain.gain.exponentialRampToValueAtTime(0.08, now + 0.02)
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.32)
+
+    oscillator.connect(gain)
+    gain.connect(context.destination)
+    oscillator.start(now)
+    oscillator.stop(now + 0.34)
+  }catch{
+    // Ignorar si el navegador bloquea audio automatico.
+  }
+}
+
+const avisarLocalmente = ({ titulo, cuerpo, toast = cuerpo || titulo, tipo = "info" }) => {
+  showToast(toast, tipo)
+  reproducirAvisoSonoro()
+
+  if(typeof window === "undefined" || !("Notification" in window)) return
+  if(permisoNotificacionesRef.current !== "granted") return
+
+  try{
+    new window.Notification(titulo, { body: cuerpo })
+  }catch{
+    // Ignorar si la notificacion falla.
+  }
+}
+
+const activarNotificaciones = async () => {
+  if(typeof window === "undefined" || !("Notification" in window)){
+    showToast("Tu navegador no soporta notificaciones", "warning")
+    return
+  }
+
+  const permiso = await window.Notification.requestPermission()
+  permisoNotificacionesRef.current = permiso
+  setPermisoNotificaciones(permiso)
+
+  if(permiso === "granted"){
+    showToast("Notificaciones activadas", "success")
+  }else{
+    showToast("No se activaron las notificaciones del navegador", "warning")
+  }
+}
+
 useEffect(() => {
   if (esAdmin) return
   if (userId && !jugadorVistaId) {
@@ -97,20 +178,20 @@ useEffect(() => {
 }, [userId, jugadorVistaId, esAdmin])
 
   const refrescar = async () => {
-    await cargarRondas()
+    const rondaId = await cargarRondas()
 
     if(modo === "rondas"){
-      await cargarMatches()
+      await cargarMatches({ rondaId })
     }else{
       await cargarStandings()
     }
   }
 
-  const recargarMatchesConRetry = async () => {
-    await cargarMatches()
+  const recargarMatchesConRetry = async (opciones = {}) => {
+    await cargarMatches(opciones)
     setTimeout(() => {
       if(modo === "rondas"){
-        cargarMatches()
+        cargarMatches(opciones)
       }
     }, 350)
   }
@@ -176,8 +257,8 @@ useEffect(() => {
     if(eventoId && String(eventoSeleccionado) !== eventoId) return
     if(!esUuid(eventoActual?.id)) return
 
-    await cargarRondas()
-    await recargarMatchesConRetry()
+    const rondaId = await cargarRondas()
+    await recargarMatchesConRetry({ rondaId })
     await cargarStandings()
   }
 
@@ -199,18 +280,75 @@ useEffect(() => {
 }, [eventoSeleccionado, eventos])
 
 useEffect(() => {
+  ultimaRondaNotificadaRef.current = null
+  adminRondaListaNotificadaRef.current = null
+}, [eventoActual?.id])
+
+useEffect(() => {
   if(!eventoActual?.id) return
 
   cargarRondas()
 
 }, [eventoActual?.id])
 
+useEffect(() => {
+  if(typeof window === "undefined" || !("Notification" in window)) return
+  permisoNotificacionesRef.current = window.Notification.permission
+  setPermisoNotificaciones(window.Notification.permission)
+}, [])
+
 
 useEffect(() => {
   if(rondaSeleccionada){
+    rondaSeleccionadaRef.current = rondaSeleccionada
     localStorage.setItem(`ronda_id_${torneoSeleccionado}`, rondaSeleccionada)
+  }else{
+    rondaSeleccionadaRef.current = null
   }
 }, [rondaSeleccionada])
+
+useEffect(() => {
+  const rondaId = normalizarId(rondaActual?.id)
+  if(!rondaId) return
+
+  const clave = `${eventoActual?.id || "sin-evento"}:${rondaId}`
+  if(!ultimaRondaNotificadaRef.current){
+    ultimaRondaNotificadaRef.current = clave
+    return
+  }
+
+  if(ultimaRondaNotificadaRef.current === clave) return
+  ultimaRondaNotificadaRef.current = clave
+
+  avisarLocalmente({
+    titulo: "Nueva ronda disponible",
+    cuerpo: `Ya puedes revisar la ronda ${rondaActual?.numero_ronda || ""} de ${torneoActual?.nombre || "tu torneo"}.`,
+    toast: `Nueva ronda disponible: Ronda ${rondaActual?.numero_ronda || ""}`,
+    tipo: "info"
+  })
+}, [rondaActual?.id, rondaActual?.numero_ronda, eventoActual?.id, torneoActual?.nombre])
+
+useEffect(() => {
+  if(!esAdmin) return
+  if(!esUuid(rondaSeleccionada)) return
+  if(matches.length === 0) return
+  if(pendientes.length > 0){
+    if(adminRondaListaNotificadaRef.current === String(rondaSeleccionada)){
+      adminRondaListaNotificadaRef.current = null
+    }
+    return
+  }
+
+  if(adminRondaListaNotificadaRef.current === String(rondaSeleccionada)) return
+  adminRondaListaNotificadaRef.current = String(rondaSeleccionada)
+
+  avisarLocalmente({
+    titulo: "Ronda lista para avanzar",
+    cuerpo: `La ronda ${rondaActual?.numero_ronda || ""} ya no tiene matches pendientes. Puedes generar la siguiente ronda.`,
+    toast: `Ronda ${rondaActual?.numero_ronda || ""} lista para generar la siguiente`,
+    tipo: "success"
+  })
+}, [esAdmin, matches.length, pendientes.length, rondaSeleccionada, rondaActual?.numero_ronda])
 
 useEffect(() => {
 
@@ -239,17 +377,21 @@ const cargarRondas = async () => {
   setRondas(lista)
 
   if(lista.length === 0){
+    rondaSeleccionadaRef.current = null
     setRondaSeleccionada(null)
     setMatches([])
     setPendientes([])
-    return
+    return null
   }
 
   // 🔥 NUEVO: validar ronda seleccionada
   if(lista.length > 0){
     const existe = lista.find(r => r.id === rondaSeleccionada)
 
-    if(!existe){
+    if(existe){
+      rondaSeleccionadaRef.current = existe.id
+    }else{
+      rondaSeleccionadaRef.current = lista[0].id
       setRondaSeleccionada(lista[0].id)
     }
   }
@@ -261,6 +403,7 @@ const cargarRondas = async () => {
 
     setRondaSeleccionada(prev => {
       if(prev !== activa.id){
+        rondaSeleccionadaRef.current = activa.id
         return activa.id
       }
       return prev
@@ -275,6 +418,7 @@ const cargarRondas = async () => {
     if(lista.length > 0){
       setRondaSeleccionada(prev => {
         if(prev !== lista[0].id){
+          rondaSeleccionadaRef.current = lista[0].id
           return lista[0].id
         }
         return prev
@@ -300,7 +444,7 @@ const cargarRondas = async () => {
   // =========================
   const cargarMatches = async () => {
     const eventoId = normalizarId(eventoActual?.id)
-    const rondaId = normalizarId(rondaSeleccionada)
+    const rondaId = normalizarId(rondaSeleccionadaRef.current || rondaSeleccionada)
 
     if(!esUuid(eventoId) || !esUuid(rondaId)){
       setMatches([])
@@ -765,6 +909,10 @@ if(!esUuid(eventoActual?.id)) return
     showToast("Regresaste a tus pareos", "info")
   }
 
+  const matchesPendientesAdmin = esAdmin
+    ? matches.filter(match => !match.confirmado)
+    : []
+
   useEffect(() => {
     if (esAdmin) return
     const player = normalizarId(jugadorVistaId)
@@ -836,6 +984,15 @@ if(!esUuid(eventoActual?.id)) return
       <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-900">
         Contexto: {torneoActual?.nombre || "Sin torneo"} {" > "} {eventoActual?.fecha || "Sin evento"} {" > "} {rondaActual ? `Ronda ${rondaActual.numero_ronda}` : "Sin ronda"}
       </div>
+
+      {typeof window !== "undefined" && "Notification" in window && permisoNotificaciones !== "granted" && (
+        <button
+          onClick={activarNotificaciones}
+          className="mb-4 w-full rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900"
+        >
+          Activar notificaciones del navegador
+        </button>
+      )}
 
       {!esAdmin && (
         <div className="mb-4 rounded-lg border border-indigo-100 bg-indigo-50 p-3">
@@ -992,6 +1149,27 @@ if(!esUuid(eventoActual?.id)) return
             rondaSeleccionada={rondaSeleccionada}
             setRonda={setRondaSeleccionada}
           />
+
+          {esAdmin && matchesPendientesAdmin.length > 0 && (
+            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3">
+              <p className="mb-3 text-sm font-semibold text-amber-900">
+                Pendientes por confirmar: {matchesPendientesAdmin.length}
+              </p>
+              <div className="space-y-3">
+                {matchesPendientesAdmin.map(m => (
+                  <MatchCard
+                    key={`pendiente-${m.id}`}
+                    match={m}
+                    onReport={reportar}
+                    esAdmin={esAdmin}
+                    userId={userId}
+                    reportando={reportandoMatchId === m.id}
+                    rondaFinalizada={rondas.find(r => String(r.id) === String(rondaSeleccionada))?.status === "finalizada"}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
 
           {matches.length === 0 ? (
             <div className="bg-white p-6 rounded shadow text-center mt-4">

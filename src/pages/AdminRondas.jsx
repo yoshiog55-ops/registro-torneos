@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { supabase } from "../supabase"
 import SubirTDF from "../components/SubirTDF"
 import { obtenerEventos } from "../utils/evento"
@@ -33,6 +33,7 @@ export default function AdminRondas() {
   const [cargando, setCargando] = useState(false)
   const [vista, setVista] = useState("pareos")
   const [filtroEstado, setFiltroEstado] = useState("todos")
+  const rondaSeleccionadaRef = useRef("")
 
   const eventoActual = useMemo(
     () => eventos.find(ev => String(ev.id) === String(eventoSeleccionado)) || null,
@@ -80,10 +81,13 @@ export default function AdminRondas() {
   useEffect(() => {
     setMatches([])
     setStats(null)
-    setFiltroEstado("todos")
 
     if (!rondaSeleccionada) return
     cargarDetalleRonda()
+  }, [rondaSeleccionada])
+
+  useEffect(() => {
+    rondaSeleccionadaRef.current = String(rondaSeleccionada || "")
   }, [rondaSeleccionada])
 
   useEffect(() => {
@@ -113,6 +117,85 @@ export default function AdminRondas() {
     window.addEventListener("torneo:data-updated", onDataUpdated)
     return () => window.removeEventListener("torneo:data-updated", onDataUpdated)
   }, [torneoSeleccionado, eventoSeleccionado, rondaSeleccionada])
+
+  useEffect(() => {
+    if (!eventoSeleccionado) return
+
+    const channel = supabase
+      .channel(`admin-rondas-rondas-${eventoSeleccionado}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "rondas",
+          filter: `evento_id=eq.${eventoSeleccionado}`
+        },
+        async () => {
+          const rondaId = await cargarRondas()
+          const rondaObjetivo = String(rondaId || rondaSeleccionadaRef.current || "")
+          if (rondaObjetivo) {
+            await cargarDetalleRonda(rondaObjetivo)
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [eventoSeleccionado])
+
+  useEffect(() => {
+    if (!eventoSeleccionado) return
+
+    const channel = supabase
+      .channel(`admin-rondas-matches-${eventoSeleccionado}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "matches",
+          filter: `evento_id=eq.${eventoSeleccionado}`
+        },
+        async () => {
+          const rondaObjetivo = String(rondaSeleccionadaRef.current || "")
+          if (rondaObjetivo) {
+            await cargarDetalleRonda(rondaObjetivo)
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [eventoSeleccionado])
+
+  useEffect(() => {
+    if (!eventoSeleccionado) return
+
+    const channel = supabase
+      .channel(`admin-rondas-standings-${eventoSeleccionado}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "standings",
+          filter: `evento_id=eq.${eventoSeleccionado}`
+        },
+        async () => {
+          await cargarStandings()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [eventoSeleccionado])
 
   const limpiarVista = () => {
     setEventos([])
@@ -168,19 +251,27 @@ export default function AdminRondas() {
 
     if (lista.length === 0) {
       setMensaje("Aun no hay rondas cargadas para este evento.")
+      setRondaSeleccionada("")
       return
     }
 
     setMensaje("")
     const activa = lista.find(r => r.status === "activa")
-    setRondaSeleccionada(String(activa?.id || lista[0].id))
+    const actual = lista.find(r => String(r.id) === String(rondaSeleccionadaRef.current))
+    const siguienteRondaId = String(actual?.id || activa?.id || lista[0].id)
+    rondaSeleccionadaRef.current = siguienteRondaId
+    setRondaSeleccionada(siguienteRondaId)
+    return siguienteRondaId
   }
 
-  const cargarDetalleRonda = async () => {
+  const cargarDetalleRonda = async (rondaIdParam = rondaSeleccionadaRef.current || rondaSeleccionada) => {
+    const rondaId = String(rondaIdParam || "")
+    if (!rondaId || !eventoSeleccionado) return
+
     const { data } = await supabase
       .from("matches")
       .select("*")
-      .eq("ronda_id", rondaSeleccionada)
+      .eq("ronda_id", rondaId)
       .eq("evento_id", eventoSeleccionado)
       .order("mesa", { ascending: true })
 

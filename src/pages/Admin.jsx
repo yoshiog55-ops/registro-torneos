@@ -1,4 +1,4 @@
-import { useState,useEffect } from "react"
+import { useState,useEffect, useRef } from "react"
 import { supabase } from "../supabase"
 import ConsultaJugadores from "../components/ConsultaJugadores"
 import TorneosAdmin from "../components/TorneosAdmin"
@@ -31,6 +31,8 @@ const [jugadorAEliminar, setJugadorAEliminar] = useState(null)
 
 const [ordenCampo,setOrdenCampo]=useState("created_at")
 const [ordenDireccion,setOrdenDireccion]=useState("asc")
+const torneoSeleccionadoRef = useRef("ALL")
+const eventoSeleccionadoRef = useRef("")
 
 useEffect(()=>{
 
@@ -58,7 +60,10 @@ useEffect(()=>{
         table: "inscripciones"
       },
       () => {
-        cargarJugadores()
+        cargarJugadores({
+          torneoSeleccionado: torneoSeleccionadoRef.current,
+          eventoSeleccionado: eventoSeleccionadoRef.current
+        })
       }
     )
     .subscribe()
@@ -200,9 +205,12 @@ cargarEstado()
 
 }
 
-async function cargarJugadores(){
+async function cargarJugadores(filtros = {}){
 
-  if(!torneoSeleccionado) return
+  const torneoId = filtros.torneoSeleccionado ?? torneoSeleccionadoRef.current ?? torneoSeleccionado
+  const eventoId = filtros.eventoSeleccionado ?? eventoSeleccionadoRef.current ?? eventoSeleccionado
+
+  if(!torneoId) return
 
   const today = new Date().toLocaleDateString("en-CA")
 
@@ -226,12 +234,12 @@ async function cargarJugadores(){
     `)
     .eq("fecha", today)
 
-  if(torneoSeleccionado !== "ALL"){
-    query = query.eq("torneo_id", torneoSeleccionado)
+  if(torneoId !== "ALL"){
+    query = query.eq("torneo_id", torneoId)
   }
 
-  if(torneoSeleccionado !== "ALL" && eventoSeleccionado){
-    query = query.eq("evento_id", eventoSeleccionado)
+  if(torneoId !== "ALL" && eventoId){
+    query = query.eq("evento_id", eventoId)
   }
 
   const { data, error } = await query
@@ -297,8 +305,13 @@ cargarJugadoresDB()
 }
 
 useEffect(() => {
+  torneoSeleccionadoRef.current = torneoSeleccionado
   localStorage.setItem("admin_torneo", torneoSeleccionado)
 }, [torneoSeleccionado])
+
+useEffect(() => {
+  eventoSeleccionadoRef.current = eventoSeleccionado
+}, [eventoSeleccionado])
 
 useEffect(()=>{
 
