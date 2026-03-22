@@ -466,6 +466,42 @@ return 0
 
 })
 
+const vistas = [
+  {
+    id: "torneo",
+    titulo: "Inscripciones",
+    descripcion: "Operacion del dia, pagos y check-in"
+  },
+  {
+    id: "jugadores",
+    titulo: "Base de jugadores",
+    descripcion: "Buscar, editar e inscribir jugadores"
+  },
+  {
+    id: "torneos",
+    titulo: "Catalogo de torneos",
+    descripcion: "Crear, activar o editar torneos"
+  },
+  {
+    id: "historial",
+    titulo: "Historial de eventos",
+    descripcion: "Archivar y restaurar eventos"
+  },
+  {
+    id: "rondas",
+    titulo: "Rondas y TDF",
+    descripcion: "Pareos, standings y carga de archivos"
+  }
+]
+
+const vistaActual = vistas.find(item => item.id === vista) || vistas[0]
+const torneoActualNombre = torneoSeleccionado === "ALL"
+  ? "Todos los torneos"
+  : torneos.find(t => String(t.id) === String(torneoSeleccionado))?.nombre || "Sin torneo"
+const eventoActualNombre = eventoSeleccionado
+  ? eventos.find(ev => String(ev.id) === String(eventoSeleccionado))?.fecha || "Evento seleccionado"
+  : "Todos los eventos"
+
 if(!auth){
 
 return(
@@ -512,59 +548,76 @@ return(
 </div>
 )}
 
-<div className="flex flex-wrap justify-between items-center mb-6 gap-3">
+<div className="mb-6 rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-50 via-white to-cyan-50 p-5 shadow-sm">
 
-<h1 className="text-2xl md:text-3xl font-bold">
-Panel administrador
+<div className="flex flex-wrap justify-between items-start gap-4">
+
+<div>
+<p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+Panel admin
+</p>
+
+<h1 className="text-2xl md:text-3xl font-bold text-slate-900">
+{vistaActual.titulo}
 </h1>
+
+<p className="mt-1 text-sm text-slate-600">
+{vistaActual.descripcion}
+</p>
+
+</div>
 
 <button
 onClick={logout}
-className="bg-red-500 text-white px-4 py-2 rounded"
+className="rounded-lg bg-red-500 px-4 py-2 text-white shadow-sm"
 >
 Cerrar sesión
 </button>
 
 </div>
 
-<div className="flex flex-wrap gap-3 mb-6">
+<div className="mt-4 flex flex-wrap gap-2 text-sm">
+<div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-700">
+Torneo: <span className="font-semibold">{torneoActualNombre}</span>
+</div>
+<div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-700">
+Evento: <span className="font-semibold">{eventoActualNombre}</span>
+</div>
+<div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-700">
+Registro: <span className={`font-semibold ${estado?.registro_abierto ? "text-green-700" : "text-red-700"}`}>
+{estado?.registro_abierto ? "Abierto" : "Cerrado"}
+</span>
+</div>
+</div>
+
+</div>
+
+<div className="mb-6 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+
+{vistas.map(item=>(
 
 <button
-onClick={()=>cambiarVista("torneo")}
-className="bg-[#00B7C3] text-white px-4 py-2 rounded"
+key={item.id}
+onClick={()=>{
+  cambiarVista(item.id)
+  if(item.id === "jugadores"){
+    cargarJugadoresDB()
+    if(torneoSeleccionado === "ALL" && torneos.length > 0) setTorneoSeleccionado(torneos[0].id)
+  }
+}}
+className={`rounded-2xl border p-4 text-left transition ${
+  vista === item.id
+    ? "border-slate-900 bg-slate-900 text-white shadow-lg"
+    : "border-slate-200 bg-white text-slate-800 hover:border-slate-400 hover:shadow-sm"
+}`}
 >
-Torneo
+<p className="text-sm font-semibold">{item.titulo}</p>
+<p className={`mt-1 text-xs ${vista === item.id ? "text-slate-200" : "text-slate-500"}`}>
+{item.descripcion}
+</p>
 </button>
 
-<button
-onClick={()=>{cambiarVista("jugadores"); cargarJugadoresDB(); if(torneoSeleccionado === "ALL" && torneos.length > 0) setTorneoSeleccionado(torneos[0].id)}}
-className="bg-gray-700 text-white px-4 py-2 rounded"
->
-Jugadores
-</button>
-
-<button
-onClick={()=>cambiarVista("torneos")}
-
-className="bg-purple-700 text-white px-4 py-2 rounded"
->
-Torneos
-</button>
-
-<button
-onClick={()=>cambiarVista("historial")}
-className="bg-amber-700 text-white px-4 py-2 rounded"
->
-Historial
-</button>
-
-<button
-onClick={()=>cambiarVista("rondas")}
-
-className="bg-indigo-700 text-white px-4 py-2 rounded"
->
-Rondas
-</button>
+))}
 
 </div>
 
@@ -572,8 +625,17 @@ Rondas
 
 <div>
 
-<div className="mb-6">
-<div className="flex flex-wrap items-center gap-4 mb-6">
+<div className="mb-6 grid gap-4 xl:grid-cols-[1.4fr,1fr]">
+
+<div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+<p className="mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+Operacion del dia
+</p>
+<h2 className="text-lg font-bold text-slate-900 mb-4">
+Inscripciones y control de registro
+</h2>
+
+<div className="flex flex-wrap items-center gap-4">
 
 <p className="font-bold text-lg">
 
@@ -680,14 +742,36 @@ Recargar
 </div>
 </div>
 
+<div className="rounded-2xl border border-slate-200 bg-slate-900 p-5 text-white shadow-sm">
+<p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">
+Contexto actual
+</p>
+<div className="mt-3 space-y-3 text-sm">
+<div>
+<span className="text-slate-400">Vista</span>
+<p className="font-semibold">{vistaActual.titulo}</p>
+</div>
+<div>
+<span className="text-slate-400">Torneo</span>
+<p className="font-semibold">{torneoActualNombre}</p>
+</div>
+<div>
+<span className="text-slate-400">Evento</span>
+<p className="font-semibold">{eventoActualNombre}</p>
+</div>
+</div>
+</div>
+
+</div>
+
 <input
-placeholder="Buscar jugador..."
-className="border p-3 rounded w-full mb-4"
+placeholder="Buscar jugador por nombre o Player ID"
+className="mb-4 w-full rounded-xl border border-slate-300 bg-white p-3"
 value={busqueda}
 onChange={(e)=>setBusqueda(e.target.value)}
 />
 
-<div className="grid grid-cols-3 gap-3 mb-6">
+<div className="grid grid-cols-1 gap-3 mb-6 md:grid-cols-3">
 
 <div className="bg-white p-4 rounded-xl shadow text-center">
 <h3 className="text-gray-500">Inscritos</h3>
