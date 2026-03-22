@@ -252,8 +252,40 @@ useEffect(() => {
     const detail = event?.detail || {}
     const torneoId = String(detail.torneo_id || "")
     const eventoId = String(detail.evento_id || "")
+    const tipo = String(detail.tipo || "")
 
     if(torneoId && String(torneoSeleccionado) !== torneoId) return
+
+    if(tipo === "evento_archivado" || tipo === "evento_creado"){
+      const lista = await obtenerEventos(torneoSeleccionado)
+      setEventos(lista)
+
+      if(lista.length === 0){
+        setEventoSeleccionado("")
+        setEventoActual(null)
+        setRondas([])
+        setRondaSeleccionada(null)
+        setMatches([])
+        setStandings([])
+        setPendientes([])
+        return
+      }
+
+      const actual = lista.find(ev => String(ev.id) === String(eventoSeleccionado))
+      const siguiente = actual || lista[0]
+      setEventoSeleccionado(String(siguiente.id))
+      setEventoActual(siguiente)
+
+      if(!actual){
+        setRondas([])
+        setRondaSeleccionada(null)
+        setMatches([])
+        setStandings([])
+        setPendientes([])
+      }
+      return
+    }
+
     if(eventoId && String(eventoSeleccionado) !== eventoId) return
     if(!esUuid(eventoActual?.id)) return
 

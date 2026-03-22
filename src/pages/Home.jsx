@@ -1,7 +1,7 @@
 import { useState,useEffect } from "react"
 import { supabase } from "../supabase"
 import { Link } from "react-router-dom"
-import { obtenerEventoActual } from "../utils/evento"
+import { esErrorDuplicado, obtenerEventoActual } from "../utils/evento"
 
 export default function Home(){
 
@@ -85,10 +85,26 @@ const {data:estado} = await supabase
 
 const late = !estado.registro_abierto
 
-const evento = await obtenerEventoActual(torneoSeleccionado || torneos[0]?.id)
+const torneoIdFinal = torneoSeleccionado || torneos[0]?.id
+const evento = await obtenerEventoActual(torneoIdFinal)
 
 if(!evento?.id){
 setMensaje("No hay evento activo para este torneo. Solicita al admin crear uno.")
+return
+}
+
+const fechaHoy = new Date().toLocaleDateString("en-CA")
+
+const { data: existe } = await supabase
+.from("inscripciones")
+.select("id")
+.eq("jugador_id", jugador.id)
+.eq("torneo_id", torneoIdFinal)
+.eq("fecha", fechaHoy)
+.eq("evento_id", evento.id)
+
+if(existe && existe.length > 0){
+setMensaje("Jugador ya inscrito en este evento")
 return
 }
 
@@ -97,9 +113,9 @@ const {error} = await supabase
 .insert({
 
 jugador_id: jugador.id,
-torneo_id: torneoSeleccionado || torneos[0]?.id,
+torneo_id: torneoIdFinal,
 late: late,
-fecha: new Date().toLocaleDateString("en-CA"),
+fecha: fechaHoy,
 pagado: false,
 evento_id: evento.id
 
@@ -108,8 +124,7 @@ evento_id: evento.id
 localStorage.setItem("player_id", jugador.player_id)
 
 if(error){
-
-setMensaje("Jugador ya inscrito hoy")
+setMensaje(esErrorDuplicado(error) ? "La base de datos aun esta bloqueando inscripciones duplicadas del mismo dia. Hay que ajustar esa restriccion en Supabase." : error.message)
 
 }else{
 

@@ -55,6 +55,13 @@ export default function AdminRondas() {
     })
   }, [matches, filtroEstado])
 
+  const seleccionarRonda = (rondaId) => {
+    const siguienteId = String(rondaId || "")
+    rondaSeleccionadaRef.current = siguienteId
+    setRondaSeleccionada(siguienteId)
+    return siguienteId
+  }
+
   useEffect(() => {
     cargarTorneos()
   }, [])
@@ -95,22 +102,25 @@ export default function AdminRondas() {
       const detail = event?.detail || {}
       const torneoId = String(detail.torneo_id || "")
       const eventoId = String(detail.evento_id || "")
+      const tipo = String(detail.tipo || "")
 
       if (torneoSeleccionado && torneoId && String(torneoSeleccionado) !== torneoId) {
         return
       }
 
-      if (eventoSeleccionado && eventoId && String(eventoSeleccionado) !== eventoId) {
+      const necesitaRefrescarEventos = tipo === "evento_archivado" || tipo === "evento_creado"
+
+      if (!necesitaRefrescarEventos && eventoSeleccionado && eventoId && String(eventoSeleccionado) !== eventoId) {
         return
       }
 
       await cargarEventosDeTorneo()
       if (eventoSeleccionado) {
-        await cargarRondas()
+        const rondaId = await cargarRondas()
         await cargarStandings()
-      }
-      if (rondaSeleccionada) {
-        await cargarDetalleRonda()
+        if (rondaId) {
+          await cargarDetalleRonda(rondaId)
+        }
       }
     }
 
@@ -251,16 +261,26 @@ export default function AdminRondas() {
 
     if (lista.length === 0) {
       setMensaje("Aun no hay rondas cargadas para este evento.")
-      setRondaSeleccionada("")
+      seleccionarRonda("")
       return
     }
 
     setMensaje("")
     const activa = lista.find(r => r.status === "activa")
     const actual = lista.find(r => String(r.id) === String(rondaSeleccionadaRef.current))
-    const siguienteRondaId = String(actual?.id || activa?.id || lista[0].id)
-    rondaSeleccionadaRef.current = siguienteRondaId
-    setRondaSeleccionada(siguienteRondaId)
+    const ultima = lista[0] || null
+
+    let siguienteRonda = actual || ultima
+
+    if (activa) {
+      siguienteRonda = activa
+    } else if (!actual) {
+      siguienteRonda = ultima
+    } else if (ultima && Number(ultima.numero_ronda || 0) > Number(actual.numero_ronda || 0)) {
+      siguienteRonda = ultima
+    }
+
+    const siguienteRondaId = seleccionarRonda(siguienteRonda?.id || "")
     return siguienteRondaId
   }
 
@@ -365,10 +385,10 @@ export default function AdminRondas() {
 
     await cargarEventosDeTorneo()
     if (eventoSeleccionado) {
-      await cargarRondas()
+      const rondaId = await cargarRondas()
       await cargarStandings()
-      if (rondaSeleccionada) {
-        await cargarDetalleRonda()
+      if (rondaId) {
+        await cargarDetalleRonda(rondaId)
       }
     }
     setCargando(false)
@@ -536,12 +556,12 @@ export default function AdminRondas() {
           <>
         <div className="flex gap-2 flex-wrap mb-4">
           {rondas.map(r => (
-            <button
-              key={r.id}
-              onClick={() => setRondaSeleccionada(String(r.id))}
-              className={`px-3 py-1 rounded-full border text-sm ${
-                String(r.id) === String(rondaSeleccionada)
-                  ? "bg-blue-600 border-blue-600 text-white"
+                <button
+                  key={r.id}
+                  onClick={() => seleccionarRonda(r.id)}
+                  className={`px-3 py-1 rounded-full border text-sm ${
+                    String(r.id) === String(rondaSeleccionada)
+                      ? "bg-blue-600 border-blue-600 text-white"
                   : "bg-white border-gray-300 text-gray-700"
               }`}
             >

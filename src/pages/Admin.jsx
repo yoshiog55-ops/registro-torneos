@@ -218,6 +218,8 @@ async function cargarJugadores(filtros = {}){
     .from("inscripciones")
     .select(`
       id,
+      torneo_id,
+      evento_id,
       pagado,
       late,
       copiado,
@@ -249,7 +251,38 @@ async function cargarJugadores(filtros = {}){
     return
   }
 
-  setJugadores(data || [])
+  const lista = data || []
+
+  if(torneoId === "ALL"){
+    const eventosVisiblesPorTorneo = await Promise.all(
+      (torneos || []).map(async torneo => {
+        const eventosDelTorneo = await obtenerEventos(torneo.id)
+        return [String(torneo.id), new Set((eventosDelTorneo || []).map(ev => String(ev.id)))]
+      })
+    )
+
+    const mapaEventosVisibles = new Map(eventosVisiblesPorTorneo)
+
+    setJugadores(
+      lista.filter(item => {
+        if(!item.evento_id || !item.torneo_id) return true
+        const eventosVisibles = mapaEventosVisibles.get(String(item.torneo_id))
+        if(!eventosVisibles) return true
+        return eventosVisibles.has(String(item.evento_id))
+      })
+    )
+    return
+  }
+
+  const eventosVisibles = await obtenerEventos(torneoId)
+  const visiblesSet = new Set((eventosVisibles || []).map(ev => String(ev.id)))
+
+  setJugadores(
+    lista.filter(item => {
+      if(!item.evento_id) return true
+      return visiblesSet.has(String(item.evento_id))
+    })
+  )
 }
 
 async function togglePago(j){
@@ -336,6 +369,26 @@ useEffect(() => {
     cargarJugadores()
   }
 }, [eventoSeleccionado])
+
+useEffect(() => {
+  const onDataUpdated = async (event) => {
+    const detail = event?.detail || {}
+    const torneoId = String(detail.torneo_id || "")
+
+    if(torneoSeleccionado !== "ALL" && torneoId && String(torneoSeleccionado) !== torneoId){
+      return
+    }
+
+    if(torneoSeleccionado !== "ALL"){
+      await cargarEventosPorTorneo()
+    }
+
+    await cargarJugadores()
+  }
+
+  window.addEventListener("torneo:data-updated", onDataUpdated)
+  return () => window.removeEventListener("torneo:data-updated", onDataUpdated)
+}, [torneoSeleccionado, eventoSeleccionado, torneos])
 
 async function cargarEventosPorTorneo(){
   if(!torneoSeleccionado || torneoSeleccionado === "ALL") return

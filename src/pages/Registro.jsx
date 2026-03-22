@@ -1,6 +1,6 @@
 import { useState,useEffect } from "react"
 import { supabase } from "../supabase"
-import { obtenerEventoActual } from "../utils/evento"
+import { esErrorDuplicado, obtenerEventoActual } from "../utils/evento"
 export default function Registro(){
 
 const [playerId,setPlayerId]=useState("")
@@ -120,7 +120,8 @@ const {data:estado} = await supabase
 .select("*")
 .single()
 
-const evento = await obtenerEventoActual(torneoSeleccionado || torneos[0]?.id)
+const torneoIdFinal = torneoSeleccionado || torneos[0]?.id
+const evento = await obtenerEventoActual(torneoIdFinal)
 
 if(!evento?.id){
 setMensaje("Jugador registrado, pero no hay evento activo en este torneo. Pide al admin crear un evento.")
@@ -133,6 +134,25 @@ return
 }
 
 const late = !estado.registro_abierto
+const fechaHoy = new Date().toLocaleDateString("en-CA")
+
+const { data:existeInscripcion } = await supabase
+.from("inscripciones")
+.select("id")
+.eq("jugador_id", jugador.id)
+.eq("torneo_id", torneoIdFinal)
+.eq("fecha", fechaHoy)
+.eq("evento_id", evento.id)
+
+if(existeInscripcion && existeInscripcion.length > 0){
+setMensaje("Jugador ya estaba inscrito en este evento")
+setPlayerInscrito(playerId)
+setPlayerId("")
+setNombre("")
+setAnio("")
+setTelefono("")
+return
+}
 
 // inscribir automáticamente
 
@@ -141,9 +161,9 @@ const {error:inscripcionError} = await supabase
 .insert({
 
 jugador_id: jugador.id,
-torneo_id: torneoSeleccionado || torneos[0]?.id,
+torneo_id: torneoIdFinal,
 late: late,
-fecha: new Date().toLocaleDateString("en-CA"),
+fecha: fechaHoy,
 pagado: false,
 evento_id: evento.id
 
@@ -151,7 +171,7 @@ evento_id: evento.id
 
 if(inscripcionError){
 
-setMensaje("Jugador registrado pero no se pudo inscribir")
+setMensaje(esErrorDuplicado(inscripcionError) ? "Jugador registrado, pero la base de datos aun bloquea inscripciones duplicadas del mismo dia. Hay que ajustar esa restriccion en Supabase." : "Jugador registrado pero no se pudo inscribir")
 
 }else{
 

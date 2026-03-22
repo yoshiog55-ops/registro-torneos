@@ -33,11 +33,12 @@ setJugadores(data)
 async function inscribirJugador(j){
 
 if(!torneoSeleccionado || torneoSeleccionado === "ALL"){
-  setMensaje("Selecciona un torneo específico para inscribir")
+  setMensaje("Selecciona un torneo especifico para inscribir")
   return
 }
 
 const today = new Date().toLocaleDateString("en-CA")
+const torneoIdFinal = torneoSeleccionado
 
 const {data:estado}=await supabase
 .from("torneo_estado")
@@ -46,16 +47,25 @@ const {data:estado}=await supabase
 
 const late = !estado.registro_abierto
 
+let eventoIdFinal = eventoSeleccionado || null
+
+if(!eventoIdFinal){
+  const evento = await obtenerEventoActual(torneoIdFinal)
+  eventoIdFinal = evento?.id || null
+}
+
+if(!eventoIdFinal){
+  setMensaje("No hay evento activo disponible para este torneo")
+  return
+}
+
 let existeQuery = supabase
 .from("inscripciones")
 .select("id")
 .eq("jugador_id",j.id)
 .eq("fecha",today)
-.eq("torneo_id", torneoSeleccionado)
-
-if(eventoSeleccionado){
-  existeQuery = existeQuery.eq("evento_id", eventoSeleccionado)
-}
+.eq("torneo_id", torneoIdFinal)
+.eq("evento_id", eventoIdFinal)
 
 const {data:existe}=await existeQuery
 
@@ -66,19 +76,12 @@ return
 
 }
 
-let eventoIdFinal = eventoSeleccionado || null
-
-if(!eventoIdFinal){
-  const evento = await obtenerEventoActual(torneoSeleccionado)
-  eventoIdFinal = evento?.id || null
-}
-
 await supabase
 .from("inscripciones")
 .insert({
 
 jugador_id:j.id,
-torneo_id: torneoSeleccionado,
+torneo_id: torneoIdFinal,
 fecha: today,
 late:late,
 evento_id: eventoIdFinal
@@ -105,26 +108,86 @@ return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
 
 async function guardarCambios(){
 
-    if(!/^[0-9]+$/.test(playerId)){
-  setMensaje("Player ID solo debe contener números")
+if(!editando?.id){
+  setMensaje("No hay jugador seleccionado para editar")
   return
 }
 
-await supabase
+if(!/^[0-9]+$/.test(playerId)){
+  setMensaje("Player ID solo debe contener numeros")
+  return
+}
+
+const playerIdAnterior = String(editando.player_id || "")
+const playerIdNuevo = String(playerId || "")
+
+const { error } = await supabase
 .from("jugadores")
 .update({
 nombre,
-player_id: playerId,
+player_id: playerIdNuevo,
 anio_nacimiento:anio,
 telefono
 })
 .eq("id",editando.id)
 
-setMensaje("Jugador actualizado")
+if(error){
+  if(error.code === "23505"){
+    setMensaje("Ese Player ID ya existe en otro jugador")
+    return
+  }
+
+  setMensaje("No se pudo actualizar el jugador: " + error.message)
+  return
+}
+
+if(playerIdAnterior && playerIdAnterior !== playerIdNuevo){
+  const actualizaciones = await Promise.all([
+    supabase
+      .from("standings")
+      .update({ player_id: playerIdNuevo })
+      .eq("player_id", playerIdAnterior),
+    supabase
+      .from("matches")
+      .update({ jugador1_id: playerIdNuevo })
+      .eq("jugador1_id", playerIdAnterior),
+    supabase
+      .from("matches")
+      .update({ jugador2_id: playerIdNuevo })
+      .eq("jugador2_id", playerIdAnterior),
+    supabase
+      .from("matches")
+      .update({ ganador_reportado_1: playerIdNuevo })
+      .eq("ganador_reportado_1", playerIdAnterior),
+    supabase
+      .from("matches")
+      .update({ ganador_reportado_2: playerIdNuevo })
+      .eq("ganador_reportado_2", playerIdAnterior),
+    supabase
+      .from("matches")
+      .update({ ganador_final: playerIdNuevo })
+      .eq("ganador_final", playerIdAnterior)
+  ])
+
+  const errorRelacionada = actualizaciones.find(item => item.error)?.error
+
+  if(errorRelacionada){
+    setMensaje("Jugador actualizado, pero no se pudo propagar el nuevo Player ID a todas las tablas: " + errorRelacionada.message)
+    await cargarJugadores()
+    return
+  }
+
+  const playerIdGuardado = localStorage.getItem("player_id")
+  if(String(playerIdGuardado) === playerIdAnterior){
+    localStorage.setItem("player_id", playerIdNuevo)
+  }
+}
+
+setMensaje("Jugador actualizado correctamente")
 
 setEditando(null)
 
-cargarJugadores()
+await cargarJugadores()
 
 }
 
@@ -137,7 +200,7 @@ return(
 onClick={volver}
 className="bg-gray-600 text-white px-4 py-2 rounded"
 >
-← Volver
+Volver
 </button>
 
 <h2 className="text-xl font-bold">
@@ -147,7 +210,7 @@ Consulta de jugadores
 </div>
 
 <input
-placeholder="Buscar jugador (nombre, player ID o teléfono)"
+placeholder="Buscar jugador (nombre, player ID o telefono)"
 className="border p-3 mb-4 rounded w-full"
 onChange={(e)=>setBusqueda(e.target.value)}
 />
@@ -167,8 +230,8 @@ onChange={(e)=>setBusqueda(e.target.value)}
 <tr>
 <th className="p-3 text-center">Player ID</th>
 <th className="p-3 text-center">Nombre</th>
-<th className="p-3 text-center">Año</th>
-<th className="p-3 text-center">Teléfono</th>
+<th className="p-3 text-center">Anio</th>
+<th className="p-3 text-center">Telefono</th>
 <th className="p-3 text-center">Inscribir</th>
 <th className="p-3 text-center">Editar</th>
 </tr>
@@ -259,7 +322,7 @@ placeholder="Nombre"
 className="border p-3 w-full mb-3 rounded"
 value={anio}
 onChange={(e)=>setAnio(e.target.value.replace(/\D/g,''))}
-placeholder="Año nacimiento"
+placeholder="Anio nacimiento"
 maxLength="4"
 />
 
@@ -267,7 +330,7 @@ maxLength="4"
 className="border p-3 w-full mb-4 rounded"
 value={telefono}
 onChange={(e)=>setTelefono(e.target.value.replace(/\D/g,''))}
-placeholder="Teléfono"
+placeholder="Telefono"
 />
 
 <div className="flex gap-3">

@@ -69,6 +69,23 @@ export default function SubirTDF() {
     cargarEventos()
   }, [torneoSeleccionado])
 
+  useEffect(() => {
+    const onDataUpdated = async (event) => {
+      const detail = event?.detail || {}
+      const torneoId = String(detail.torneo_id || "")
+      const tipo = String(detail.tipo || "")
+
+      if (!torneoSeleccionado) return
+      if (torneoId && String(torneoSeleccionado) !== torneoId) return
+      if (tipo !== "evento_archivado" && tipo !== "evento_creado") return
+
+      await cargarEventos()
+    }
+
+    window.addEventListener("torneo:data-updated", onDataUpdated)
+    return () => window.removeEventListener("torneo:data-updated", onDataUpdated)
+  }, [torneoSeleccionado])
+
   const cargarEventos = async () => {
     const data = await obtenerEventos(torneoSeleccionado)
     setEventos(data)

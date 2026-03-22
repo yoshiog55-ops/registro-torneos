@@ -27,6 +27,10 @@ export function resolverEventoArchivado(evento) {
   return esEventoArchivado(evento?.id ?? evento)
 }
 
+export function esErrorDuplicado(error) {
+  return error?.code === "23505"
+}
+
 export async function setEventoArchivado(eventoId, archivado) {
   const mapa = leerMapaArchivados()
   const key = String(eventoId)
@@ -78,6 +82,11 @@ export async function crearEvento(torneo_id, fecha) {
     .select()
     .single()
 
-  if (error) throw error
+  if (error) {
+    if (esErrorDuplicado(error)) {
+      throw new Error("La base de datos aun bloquea multiples eventos del mismo torneo en la misma fecha. Hay que ajustar esa restriccion en Supabase.")
+    }
+    throw error
+  }
   return data
 }

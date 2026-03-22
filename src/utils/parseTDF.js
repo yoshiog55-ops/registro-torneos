@@ -64,21 +64,23 @@ return {
     }
   })
 
-  // 🔥 DETECTAR: ¿Hay múltiples categorías (juniors + seniors)?
-  const hasMultipleCategories = allPods.length > 1
+  const podsConJugadores = allPods.filter(pod => pod.playerCount > 0)
+  const categoriasConJugadores = [...new Set(podsConJugadores.map(pod => String(pod.category ?? "")))]
+  const hayJuniorsOSeniors = categoriasConJugadores.some(category => category === "0" || category === "1")
+  const hasMultipleCategories = hayJuniorsOSeniors && categoriasConJugadores.length > 1
 
   let standings = []
 
   if (hasMultipleCategories) {
-    // 🎯 MODO 1: Múltiples categorías → Calcular con OWP/OOWP
+    // 🎯 MODO 1: Hay juniors/seniors reales
+    // Respetar el orden oficial del archivo para la categoría principal
+    // e insertar las categorías secundarias según sus match points.
     
-    // Extraer todos los jugadores
     const allPlayers = new Set()
     allPods.forEach(pod => {
       pod.players.forEach(p => allPlayers.add(p.id))
     })
 
-    // Calcular stats de cada jugador
     const playerStats = {}
     
     Array.from(allPlayers).forEach(playerId => {
@@ -87,31 +89,26 @@ return {
         wins: 0,
         losses: 0,
         draws: 0,
-        opponents: [],
-        owp: 0,
-        oowp: 0
+        matchPoints: 0
       }
     })
 
-    // Procesar todos los matches
     rounds.forEach(round => {
       round.matches.forEach(match => {
-        const p1 = match.jugador1_id
-        const p2 = match.jugador2_id
+      const p1 = match.jugador1_id
+      const p2 = match.jugador2_id
 
-// 🔥 ignorar matches sin resultado
-if (match.outcome === 0) return
+        if (match.outcome === 0) return
 
-// 🔥 BYE = victoria automática
-if (match.outcome === 5) {
-  if (playerStats[p1]) {
-    playerStats[p1].wins++
-  }
-  return
-}
+        if (match.outcome === 5) {
+          if (playerStats[p1]) {
+            playerStats[p1].wins++
+            playerStats[p1].matchPoints += 3
+          }
+          return
+        }
 
-// matches normales
-if (!p1 || !p2) return
+        if (!p1 || !p2) return
 
         const p1Stat = playerStats[p1]
         const p2Stat = playerStats[p2]
@@ -120,90 +117,78 @@ if (!p1 || !p2) return
 
         if (match.outcome === 1) {
           p1Stat.wins++
+          p1Stat.matchPoints += 3
           p2Stat.losses++
         } else if (match.outcome === 2) {
           p2Stat.wins++
+          p2Stat.matchPoints += 3
           p1Stat.losses++
         } else if (match.outcome === 3) {
           p1Stat.draws++
           p2Stat.draws++
+          p1Stat.matchPoints += 1
+          p2Stat.matchPoints += 1
         }
-
-        p1Stat.opponents.push(p2)
-        p2Stat.opponents.push(p1)
       })
     })
 
-    // Calcular OWP
-    Object.values(playerStats).forEach(stat => {
-      if (stat.opponents.length === 0) {
-        stat.owp = 0
-        return
+    const podsOrdenados = [...podsConJugadores].sort((a, b) => b.playerCount - a.playerCount)
+    const podPrincipal = podsOrdenados[0]
+    const podsSecundarios = podsOrdenados.slice(1)
+
+    const base = [...podPrincipal.players]
+      .sort((a, b) => a.place - b.place)
+      .map(player => ({
+        player_id: player.id,
+        place: player.place,
+        category: podPrincipal.category,
+        ...playerStats[player.id]
+      }))
+
+    const secundarios = podsSecundarios
+      .flatMap(pod => pod.players.map(player => ({
+        player_id: player.id,
+        place: player.place,
+        category: pod.category,
+        ...playerStats[player.id]
+      })))
+      .sort((a, b) => {
+        if (a.matchPoints !== b.matchPoints) return b.matchPoints - a.matchPoints
+        return a.place - b.place
+      })
+
+    const combinados = [...base]
+
+    secundarios.forEach(player => {
+      let insertAt = combinados.findIndex(item => item.matchPoints < player.matchPoints)
+
+      if (insertAt === -1) {
+        insertAt = combinados.length
+      } else {
+        while (insertAt < combinados.length && combinados[insertAt].matchPoints === player.matchPoints) {
+          insertAt += 1
+        }
       }
 
-      let opponentWins = 0
-      let opponentGames = 0
-
-      stat.opponents.forEach(oppId => {
-        const opp = playerStats[oppId]
-        if (opp) {
-          opponentWins += opp.wins
-          opponentGames += opp.wins + opp.losses + opp.draws
-        }
-      })
-
-      stat.owp = opponentGames > 0 ? opponentWins / opponentGames : 0
+      combinados.splice(insertAt, 0, player)
     })
 
-    // Calcular OOWP
-    Object.values(playerStats).forEach(stat => {
-      let oowpSum = 0
-      let oowpCount = 0
-
-      stat.opponents.forEach(oppId => {
-        const opp = playerStats[oppId]
-        if (opp) {
-          oowpSum += opp.owp
-          oowpCount++
-        }
-      })
-
-      stat.oowp = oowpCount > 0 ? oowpSum / oowpCount : 0
-    })
-
-    // Ordenar con tiebreakers (W > OWP > OOWP)
-    const sortedPlayers = Array.from(allPlayers)
-      .map(id => playerStats[id])
-      .sort((a, b) => {
-        const aWins = a.wins
-        const bWins = b.wins
-        if (aWins !== bWins) return bWins - aWins
-
-        if (Math.abs(a.owp - b.owp) > 0.0001) return b.owp - a.owp
-
-        if (Math.abs(a.oowp - b.oowp) > 0.0001) return b.oowp - a.oowp
-
-        return 0
-      })
-
-    standings = sortedPlayers.map((stat, index) => ({
-      player_id: stat.player_id,
+    standings = combinados.map((player, index) => ({
+      player_id: player.player_id,
       posicion: index + 1,
-      wins: stat.wins,
-      losses: stat.losses,
-      draws: stat.draws,
-      owp: stat.owp,
-      oowp: stat.oowp
+      wins: player.wins,
+      losses: player.losses,
+      draws: player.draws
     }))
 
   } else {
-    // 🎯 MODO 2: Una sola categoría → Usar standings del archivo
+    // 🎯 MODO 2: Sin juniors/seniors reales → Usar solo lo que venga en el archivo
     
-    if (allPods.length > 0) {
-      standings = allPods[0].players.map(p => ({
+    if (podsConJugadores.length > 0) {
+      standings = podsConJugadores.flatMap(pod => pod.players.map(p => ({
         player_id: p.id,
         posicion: p.place
-      }))
+      })))
     }
   }
 
