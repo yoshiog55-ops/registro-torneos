@@ -4,6 +4,7 @@ import ConsultaJugadores from "../components/ConsultaJugadores"
 import TorneosAdmin from "../components/TorneosAdmin"
 import EventosHistorial from "../components/EventosHistorial"
 import AdminRondas from "./AdminRondas"
+import { formatDateTimeInMexico, getMexicoDateInputValue } from "../utils/date"
 import { obtenerEventos, crearEvento } from "../utils/evento"
 import { showToast } from "../utils/toast"
 
@@ -24,7 +25,7 @@ const [torneos,setTorneos] = useState([])
 const [torneoSeleccionado,setTorneoSeleccionado] = useState("ALL")
 const [eventos,setEventos] = useState([])
 const [eventoSeleccionado,setEventoSeleccionado] = useState("")
-const [nuevaFechaEvento,setNuevaFechaEvento] = useState(new Date().toISOString().split("T")[0])
+const [nuevaFechaEvento,setNuevaFechaEvento] = useState(getMexicoDateInputValue())
 
 const [mostrarConfirmacion, setMostrarConfirmacion] = useState(false)
 const [jugadorAEliminar, setJugadorAEliminar] = useState(null)
@@ -212,7 +213,7 @@ async function cargarJugadores(filtros = {}){
 
   if(!torneoId) return
 
-  const today = new Date().toLocaleDateString("en-CA")
+  const today = getMexicoDateInputValue()
 
   let query = supabase
     .from("inscripciones")
@@ -849,9 +850,7 @@ Fecha inscripción
 <td className="p-3 text-center">{j.jugadores.anio_nacimiento}</td>
 
 <td className="p-3 text-center text-xs">
-{new Date(j.created_at).toLocaleString("es-MX", {
-  timeZone: "America/Mexico_City"
-})}
+{formatDateTimeInMexico(j.created_at)}
 </td>
 
 <td className="p-3 text-center">

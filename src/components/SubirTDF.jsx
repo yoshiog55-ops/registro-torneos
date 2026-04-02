@@ -3,6 +3,7 @@ import { parseTDF } from "../utils/parseTDF"
 import { guardarRonda } from "../service/rondasService"
 import { supabase } from "../supabase"
 import { obtenerEventos, crearEvento } from "../utils/evento"
+import { formatEventDate, getMexicoDateInputValue } from "../utils/date"
 import { showToast } from "../utils/toast"
 
 export default function SubirTDF() {
@@ -10,7 +11,7 @@ export default function SubirTDF() {
   const [torneoSeleccionado, setTorneoSeleccionado] = useState("")
   const [eventos, setEventos] = useState([])
   const [eventoSeleccionado, setEventoSeleccionado] = useState("")
-  const [nuevaFecha, setNuevaFecha] = useState(new Date().toISOString().split('T')[0])
+  const [nuevaFecha, setNuevaFecha] = useState(getMexicoDateInputValue())
 
   const [file, setFile] = useState(null)
   const [preview, setPreview] = useState(null)
@@ -444,8 +445,8 @@ export default function SubirTDF() {
         >
           <option value="">Seleccionar evento</option>
           {eventos.map(e => (
-            <option key={e.id} value={e.id}>
-              {e.fecha} - {new Date(e.fecha).toLocaleDateString('es-ES', { timeZone: 'UTC' })}
+              <option key={e.id} value={e.id}>
+              {e.fecha} - {formatEventDate(e.fecha, "es-ES")}
             </option>
           ))}
         </select>

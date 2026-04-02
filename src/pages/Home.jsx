@@ -1,6 +1,7 @@
 import { useState,useEffect } from "react"
 import { supabase } from "../supabase"
 import { Link } from "react-router-dom"
+import { getMexicoDateInputValue } from "../utils/date"
 import { esErrorDuplicado, obtenerEventoActual } from "../utils/evento"
 
 export default function Home(){
@@ -93,7 +94,7 @@ setMensaje("No hay evento activo para este torneo. Solicita al admin crear uno."
 return
 }
 
-const fechaHoy = new Date().toLocaleDateString("en-CA")
+const fechaHoy = getMexicoDateInputValue()
 
 const { data: existe } = await supabase
 .from("inscripciones")

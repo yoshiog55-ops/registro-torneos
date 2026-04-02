@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { supabase } from "../supabase"
 import SubirTDF from "../components/SubirTDF"
+import { formatEventDate } from "../utils/date"
 import { obtenerEventos } from "../utils/evento"
 import { showToast } from "../utils/toast"
 
@@ -16,7 +17,65 @@ function estadoDeMatch(match) {
 
 function formatearFechaEvento(fecha) {
   if (!fecha) return "Sin fecha"
-  return new Date(fecha).toLocaleDateString("es-MX", { timeZone: "UTC" })
+  return formatEventDate(fecha)
+}
+
+function normalizarId(valor) {
+  if (valor === null || valor === undefined) return null
+  const limpio = String(valor).trim()
+  if (!limpio) return null
+  if (limpio.toLowerCase() === "null") return null
+  if (limpio.toLowerCase() === "undefined") return null
+  return limpio
+}
+
+function resolverEtiquetaReporte(match, reporte) {
+  const j1 = normalizarId(match.jugador1_id)
+  const j2 = normalizarId(match.jugador2_id)
+
+  if (!reporte && !match.empate) return "Sin reporte"
+  if (match.empate && !match.ganador_reportado_1 && !match.ganador_reportado_2) return "Empate"
+  if (reporte === j1) return match.jugador1_nombre
+  if (reporte === j2) return match.jugador2_nombre
+  return "Empate"
+}
+
+function claseBotonResultado(match, objetivo) {
+  const objetivoNormalizado = normalizarId(objetivo)
+  const reporte1 = normalizarId(match.ganador_reportado_1)
+  const reporte2 = normalizarId(match.ganador_reportado_2)
+  const ganadorFinal = normalizarId(match.ganador_final)
+  const fueReportado = objetivoNormalizado && (reporte1 === objetivoNormalizado || reporte2 === objetivoNormalizado)
+
+  if (match.confirmado && ganadorFinal === objetivoNormalizado) {
+    return "bg-green-600 text-white border-green-600"
+  }
+
+  if (match.estado === "Conflicto" && fueReportado) {
+    return "border-red-500 text-red-500 bg-white"
+  }
+
+  if (fueReportado) {
+    return "border-green-600 text-green-600 bg-white"
+  }
+
+  return "bg-white border-gray-300"
+}
+
+function claseBotonEmpate(match) {
+  if (match.empate && match.confirmado) {
+    return "bg-yellow-500 text-white border-yellow-500"
+  }
+
+  if (match.estado === "Conflicto" && match.empate) {
+    return "border-red-500 text-red-500 bg-white"
+  }
+
+  if (match.empate) {
+    return "border-yellow-500 text-yellow-600 bg-white"
+  }
+
+  return "bg-white border-gray-300"
 }
 
 export default function AdminRondas() {
@@ -33,7 +92,19 @@ export default function AdminRondas() {
   const [cargando, setCargando] = useState(false)
   const [vista, setVista] = useState("pareos")
   const [filtroEstado, setFiltroEstado] = useState("todos")
+  const [permisoNotificaciones, setPermisoNotificaciones] = useState(
+    typeof window !== "undefined" && "Notification" in window
+      ? window.Notification.permission
+      : "unsupported"
+  )
   const rondaSeleccionadaRef = useRef("")
+  const permisoNotificacionesRef = useRef(
+    typeof window !== "undefined" && "Notification" in window
+      ? window.Notification.permission
+      : "unsupported"
+  )
+  const audioContextRef = useRef(null)
+  const rondaListaNotificadaRef = useRef(null)
 
   const eventoActual = useMemo(
     () => eventos.find(ev => String(ev.id) === String(eventoSeleccionado)) || null,
@@ -60,6 +131,81 @@ export default function AdminRondas() {
     rondaSeleccionadaRef.current = siguienteId
     setRondaSeleccionada(siguienteId)
     return siguienteId
+  }
+
+  const reproducirAvisoSonoroFuerte = () => {
+    if (typeof window === "undefined") return
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext
+    if (!AudioContextClass) return
+
+    try {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new AudioContextClass()
+      }
+
+      const context = audioContextRef.current
+      if (context.state === "suspended") {
+        context.resume().catch(() => {})
+      }
+
+      const notas = [
+        { inicio: 0, frecuencia: 880, duracion: 0.18 },
+        { inicio: 0.24, frecuencia: 988, duracion: 0.18 },
+        { inicio: 0.48, frecuencia: 1174, duracion: 0.26 }
+      ]
+
+      notas.forEach(nota => {
+        const oscillator = context.createOscillator()
+        const gain = context.createGain()
+        const startAt = context.currentTime + nota.inicio
+        const endAt = startAt + nota.duracion
+
+        oscillator.type = "square"
+        oscillator.frequency.setValueAtTime(nota.frecuencia, startAt)
+
+        gain.gain.setValueAtTime(0.0001, startAt)
+        gain.gain.exponentialRampToValueAtTime(0.12, startAt + 0.02)
+        gain.gain.exponentialRampToValueAtTime(0.0001, endAt)
+
+        oscillator.connect(gain)
+        gain.connect(context.destination)
+        oscillator.start(startAt)
+        oscillator.stop(endAt)
+      })
+    } catch {
+      // Ignorar si el navegador bloquea audio automatico.
+    }
+  }
+
+  const avisarLocalmente = ({ titulo, cuerpo, toast = cuerpo || titulo, tipo = "info" }) => {
+    showToast(toast, tipo)
+    reproducirAvisoSonoroFuerte()
+
+    if (typeof window === "undefined" || !("Notification" in window)) return
+    if (permisoNotificacionesRef.current !== "granted") return
+
+    try {
+      new window.Notification(titulo, { body: cuerpo })
+    } catch {
+      // Ignorar si la notificacion falla.
+    }
+  }
+
+  const activarNotificaciones = async () => {
+    if (typeof window === "undefined" || !("Notification" in window)) {
+      showToast("Tu navegador no soporta notificaciones", "warning")
+      return
+    }
+
+    const permiso = await window.Notification.requestPermission()
+    permisoNotificacionesRef.current = permiso
+    setPermisoNotificaciones(permiso)
+
+    if (permiso === "granted") {
+      showToast("Notificaciones activadas para scorekeeper", "success")
+    } else {
+      showToast("No se activaron las notificaciones del navegador", "warning")
+    }
   }
 
   useEffect(() => {
@@ -96,6 +242,37 @@ export default function AdminRondas() {
   useEffect(() => {
     rondaSeleccionadaRef.current = String(rondaSeleccionada || "")
   }, [rondaSeleccionada])
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !("Notification" in window)) return
+    permisoNotificacionesRef.current = window.Notification.permission
+    setPermisoNotificaciones(window.Notification.permission)
+  }, [])
+
+  useEffect(() => {
+    rondaListaNotificadaRef.current = null
+  }, [eventoSeleccionado, rondaSeleccionada])
+
+  useEffect(() => {
+    if (!rondaSeleccionada) return
+    if (!stats?.total) return
+
+    if (stats.pendientes > 0) {
+      rondaListaNotificadaRef.current = null
+      return
+    }
+
+    const claveRonda = String(rondaSeleccionada)
+    if (rondaListaNotificadaRef.current === claveRonda) return
+    rondaListaNotificadaRef.current = claveRonda
+
+    avisarLocalmente({
+      titulo: "Ronda lista para capturar",
+      cuerpo: `La ronda ${rondaActual?.numero_ronda || ""} de ${torneoActual?.nombre || "tu torneo"} ya no tiene pendientes.`,
+      toast: `Ronda ${rondaActual?.numero_ronda || ""} lista para avanzar`,
+      tipo: "success"
+    })
+  }, [stats?.pendientes, stats?.total, rondaSeleccionada, rondaActual?.numero_ronda, torneoActual?.nombre])
 
   useEffect(() => {
     const onDataUpdated = async (event) => {
@@ -529,6 +706,15 @@ export default function AdminRondas() {
           </p>
         )}
 
+        {typeof window !== "undefined" && "Notification" in window && permisoNotificaciones !== "granted" && (
+          <button
+            onClick={activarNotificaciones}
+            className="mb-4 w-full rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900"
+          >
+            Activar notificaciones para scorekeeper
+          </button>
+        )}
+
         <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-900">
           Contexto: {torneoActual?.nombre || "Sin torneo"} {" > "} {eventoActual?.fecha || "Sin evento"} {" > "} {rondaActual ? `Ronda ${rondaActual.numero_ronda}` : "Sin ronda"}
         </div>
@@ -653,37 +839,41 @@ export default function AdminRondas() {
                         <button
                           onClick={() => actualizarResultadoAdmin(match, match.jugador1_id)}
                           disabled={rondas.find(r => String(r.id) === String(rondaSeleccionada))?.status === "finalizada"}
-                          className={`px-2 py-1 text-xs rounded border ${
-                            String(match.ganador_final) === String(match.jugador1_id) && match.confirmado
-                              ? "bg-green-600 text-white border-green-600"
-                              : "bg-white border-gray-300"
-                          }`}
+                          className={`px-2 py-1 text-xs rounded border-2 ${claseBotonResultado(match, match.jugador1_id)}`}
                         >
                           {match.jugador1_nombre}
                         </button>
                         <button
                           onClick={() => actualizarResultadoAdmin(match, match.jugador2_id)}
                           disabled={!match.jugador2_id || rondas.find(r => String(r.id) === String(rondaSeleccionada))?.status === "finalizada"}
-                          className={`px-2 py-1 text-xs rounded border ${
-                            String(match.ganador_final) === String(match.jugador2_id) && match.confirmado
-                              ? "bg-green-600 text-white border-green-600"
-                              : "bg-white border-gray-300"
-                          }`}
+                          className={`px-2 py-1 text-xs rounded border-2 ${claseBotonResultado(match, match.jugador2_id)}`}
                         >
                           {match.jugador2_nombre}
                         </button>
                         <button
                           onClick={() => actualizarResultadoAdmin(match, "empate")}
                           disabled={rondas.find(r => String(r.id) === String(rondaSeleccionada))?.status === "finalizada"}
-                          className={`px-2 py-1 text-xs rounded border ${
-                            match.empate && match.confirmado
-                              ? "bg-yellow-500 text-white border-yellow-500"
-                              : "bg-white border-gray-300"
-                          }`}
+                          className={`px-2 py-1 text-xs rounded border-2 ${claseBotonEmpate(match)}`}
                         >
                           Empate
                         </button>
                       </div>
+                      {!match.confirmado && (
+                        <div className="mt-2 grid gap-1 text-[11px]">
+                          <div className={`rounded border px-2 py-1 ${
+                            match.ganador_reportado_1 ? "border-blue-300 bg-blue-50 text-blue-800" : "border-gray-200 bg-gray-50 text-gray-500"
+                          }`}>
+                            Jugador 1 reporto: {resolverEtiquetaReporte(match, normalizarId(match.ganador_reportado_1))}
+                          </div>
+                          {!!match.jugador2_id && (
+                            <div className={`rounded border px-2 py-1 ${
+                              match.ganador_reportado_2 ? "border-indigo-300 bg-indigo-50 text-indigo-800" : "border-gray-200 bg-gray-50 text-gray-500"
+                            }`}>
+                              Jugador 2 reporto: {resolverEtiquetaReporte(match, normalizarId(match.ganador_reportado_2))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td className="py-2 font-medium">
                       <span

@@ -1,5 +1,6 @@
 import { useState,useEffect } from "react"
 import { supabase } from "../supabase"
+import { getMexicoDateInputValue } from "../utils/date"
 import { obtenerEventoActual } from "../utils/evento"
 
 export default function ConsultaJugadores({ volver, torneoSeleccionado, eventoSeleccionado }){
@@ -37,7 +38,7 @@ if(!torneoSeleccionado || torneoSeleccionado === "ALL"){
   return
 }
 
-const today = new Date().toLocaleDateString("en-CA")
+const today = getMexicoDateInputValue()
 const torneoIdFinal = torneoSeleccionado
 
 const {data:estado}=await supabase

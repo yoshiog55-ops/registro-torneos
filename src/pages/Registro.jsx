@@ -1,5 +1,6 @@
 import { useState,useEffect } from "react"
 import { supabase } from "../supabase"
+import { getMexicoDateInputValue } from "../utils/date"
 import { esErrorDuplicado, obtenerEventoActual } from "../utils/evento"
 export default function Registro(){
 
@@ -134,7 +135,7 @@ return
 }
 
 const late = !estado.registro_abierto
-const fechaHoy = new Date().toLocaleDateString("en-CA")
+const fechaHoy = getMexicoDateInputValue()
 
 const { data:existeInscripcion } = await supabase
 .from("inscripciones")

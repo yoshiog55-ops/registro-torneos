@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { supabase } from "../supabase"
 import SelectorRonda from "../components/SelectorRonda"
 import MatchCard from "../components/MatchCard"
+import { formatEventDate } from "../utils/date"
 import { obtenerEventos } from "../utils/evento"
 import { showToast } from "../utils/toast"
 
@@ -31,8 +32,7 @@ export default function Pareos() {
 
   const [userId, setUserId] = useState(null)
   const [inputId, setInputId] = useState("")
-  const [jugadorVistaId, setJugadorVistaId] = useState(null)
-  const [jugadorVistaNombre, setJugadorVistaNombre] = useState("")
+  const [jugadoresVista, setJugadoresVista] = useState([])
   const [filtroJugadorInput, setFiltroJugadorInput] = useState("")
   const [buscandoJugador, setBuscandoJugador] = useState(false)
   const [esAdmin, setEsAdmin] = useState(false)
@@ -62,6 +62,23 @@ export default function Pareos() {
   const adminRondaListaNotificadaRef = useRef(null)
   const torneoActual = torneos.find(t => String(t.id) === String(torneoSeleccionado)) || null
   const rondaActual = rondas.find(r => String(r.id) === String(rondaSeleccionada)) || null
+
+  const restaurarVistaPropia = (playerId, nombre = playerId) => {
+    const idNormalizado = normalizarId(playerId)
+    if (!idNormalizado) return
+
+    setJugadoresVista([{ id: idNormalizado, nombre: String(nombre || idNormalizado) }])
+  }
+
+  const agregarJugadorVista = (playerId, nombre) => {
+    const idNormalizado = normalizarId(playerId)
+    if (!idNormalizado) return
+
+    setJugadoresVista(prev => {
+      const sinDuplicados = prev.filter(j => normalizarId(j.id) !== idNormalizado)
+      return [...sinDuplicados, { id: idNormalizado, nombre: String(nombre || idNormalizado) }].slice(0, 2)
+    })
+  }
   // =========================
   // 🔐 INIT
   // =========================
@@ -80,8 +97,7 @@ const init = async () => {
   const saved = localStorage.getItem("player_id")
   if(saved){
     setUserId(saved)
-    setJugadorVistaId(saved)
-    setJugadorVistaNombre(saved)
+    restaurarVistaPropia(saved, saved)
   }
 
   // 🔥 obtener torneos activos
@@ -171,11 +187,10 @@ const activarNotificaciones = async () => {
 
 useEffect(() => {
   if (esAdmin) return
-  if (userId && !jugadorVistaId) {
-    setJugadorVistaId(userId)
-    setJugadorVistaNombre(userId)
+  if (userId && jugadoresVista.length === 0) {
+    restaurarVistaPropia(userId, userId)
   }
-}, [userId, jugadorVistaId, esAdmin])
+}, [userId, jugadoresVista.length, esAdmin])
 
   const refrescar = async () => {
     const rondaId = await cargarRondas()
@@ -320,6 +335,7 @@ useEffect(() => {
   if(!eventoActual?.id) return
 
   cargarRondas()
+  cargarStandings()
 
 }, [eventoActual?.id])
 
@@ -390,7 +406,7 @@ useEffect(() => {
 
   cargarMatches()
 
-}, [rondaSeleccionada, eventoActual, modo])
+}, [rondaSeleccionada, eventoActual, modo, jugadoresVista])
 
   // =========================
   // 📊 RONDAS
@@ -555,13 +571,18 @@ let formateado = data.map(m => {
   }
 })
 
-  const user = normalizarId(jugadorVistaId || userId)
+  const jugadoresVisibles = !esAdmin
+    ? jugadoresVista
+        .map(jugador => normalizarId(jugador.id))
+        .filter(Boolean)
+    : []
 
-if(!esAdmin && user){
-  formateado = formateado.filter(m =>
-    normalizarId(m.jugador1_id) === user ||
-    normalizarId(m.jugador2_id) === user
-  )
+if(!esAdmin && jugadoresVisibles.length > 0){
+  formateado = formateado.filter(m => {
+    const jugador1 = normalizarId(m.jugador1_id)
+    const jugador2 = normalizarId(m.jugador2_id)
+    return jugadoresVisibles.includes(jugador1) || jugadoresVisibles.includes(jugador2)
+  })
 }
 
     // 🔥 pendientes
@@ -896,8 +917,7 @@ if(!esUuid(eventoActual?.id)) return
       const player = String(jugador.player_id)
       localStorage.setItem("player_id", player)
       setUserId(player)
-      setJugadorVistaId(player)
-      setJugadorVistaNombre(jugador.nombre || player)
+      restaurarVistaPropia(player, jugador.nombre || player)
       setInputId("")
       showToast("Jugador cargado correctamente", "success")
     } catch (error) {
@@ -923,10 +943,21 @@ if(!esUuid(eventoActual?.id)) return
       }
 
       const player = String(jugador.player_id)
-      setJugadorVistaId(player)
-      setJugadorVistaNombre(jugador.nombre || player)
+      const yaExiste = jugadoresVista.some(item => normalizarId(item.id) === normalizarId(player))
+      if (yaExiste) {
+        setFiltroJugadorInput("")
+        showToast(`${jugador.nombre || player} ya esta en consulta`, "info")
+        return
+      }
+
+      if (jugadoresVista.length >= 2) {
+        showToast("Solo puedes consultar 2 jugadores al mismo tiempo", "warning")
+        return
+      }
+
+      agregarJugadorVista(player, jugador.nombre || player)
       setFiltroJugadorInput("")
-      showToast(`Mostrando pareos de ${jugador.nombre || player}`, "info")
+      showToast(`Jugador agregado a consulta: ${jugador.nombre || player}`, "info")
     } catch (error) {
       showToast(`Error al buscar jugador: ${error.message}`, "error")
     } finally {
@@ -936,42 +967,30 @@ if(!esUuid(eventoActual?.id)) return
 
   const volverAMisPareos = () => {
     if (!userId) return
-    setJugadorVistaId(String(userId))
+    const nombreJugadorActual =
+      jugadoresVista.find(j => normalizarId(j.id) === normalizarId(userId))?.nombre || userId
+    restaurarVistaPropia(String(userId), nombreJugadorActual)
     setFiltroJugadorInput("")
     showToast("Regresaste a tus pareos", "info")
+  }
+
+  const quitarJugadorEnConsulta = (playerId) => {
+    const playerNormalizado = normalizarId(playerId)
+    const usuarioNormalizado = normalizarId(userId)
+    if (!playerNormalizado) return
+
+    if (playerNormalizado === usuarioNormalizado) {
+      volverAMisPareos()
+      return
+    }
+
+    setJugadoresVista(prev => prev.filter(j => normalizarId(j.id) !== playerNormalizado))
+    showToast("Jugador removido de la consulta", "info")
   }
 
   const matchesPendientesAdmin = esAdmin
     ? matches.filter(match => !match.confirmado)
     : []
-
-  useEffect(() => {
-    if (esAdmin) return
-    const player = normalizarId(jugadorVistaId)
-    if (!player) return
-
-    let cancelado = false
-
-    const cargarNombreJugadorVista = async () => {
-      const { data, error } = await supabase
-        .from("jugadores")
-        .select("nombre")
-        .eq("player_id", player)
-        .maybeSingle()
-
-      if (cancelado) return
-      if (error) return
-
-      const nombre = data?.nombre ? String(data.nombre) : player
-      setJugadorVistaNombre(nombre)
-    }
-
-    cargarNombreJugadorVista()
-
-    return () => {
-      cancelado = true
-    }
-  }, [jugadorVistaId, esAdmin])
 
   // =========================
   // PLAYER ID MODAL
@@ -1029,13 +1048,35 @@ if(!esUuid(eventoActual?.id)) return
       {!esAdmin && (
         <div className="mb-4 rounded-lg border border-indigo-100 bg-indigo-50 p-3">
           <p className="text-sm text-indigo-900 mb-2">
-            Viendo pareos de: <span className="font-semibold">{jugadorVistaNombre || jugadorVistaId || userId}</span>
+            Viendo pareos de hasta 2 jugadores al mismo tiempo.
           </p>
+          <div className="mb-3 flex flex-wrap gap-2">
+            {jugadoresVista.map(jugador => {
+              const esJugadorActual = normalizarId(jugador.id) === normalizarId(userId)
+              return (
+                <div
+                  key={jugador.id}
+                  className="flex items-center gap-2 rounded-full border border-indigo-200 bg-white px-3 py-1 text-sm text-indigo-900"
+                >
+                  <span className="font-medium">{jugador.nombre || jugador.id}</span>
+                  <span className="text-indigo-500">#{jugador.id}</span>
+                  {!esJugadorActual && (
+                    <button
+                      onClick={() => quitarJugadorEnConsulta(jugador.id)}
+                      className="text-xs font-semibold text-indigo-700"
+                    >
+                      Quitar
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
           <div className="flex flex-col md:flex-row gap-2">
             <input
               value={filtroJugadorInput}
               onChange={(e) => setFiltroJugadorInput(e.target.value.replace(/\D/g, ""))}
-              placeholder="Ver otro jugador (ID o telefono)"
+              placeholder="Agregar jugador a consulta (ID o telefono)"
               className="border rounded px-3 py-2 flex-1 text-sm"
             />
             <button
@@ -1043,14 +1084,14 @@ if(!esUuid(eventoActual?.id)) return
               disabled={buscandoJugador}
               className="bg-indigo-600 text-white px-3 py-2 rounded text-sm"
             >
-              {buscandoJugador ? "Buscando..." : "Ver otro jugador"}
+              {buscandoJugador ? "Buscando..." : "Agregar jugador"}
             </button>
-            {normalizarId(jugadorVistaId) !== normalizarId(userId) && (
+            {jugadoresVista.some(j => normalizarId(j.id) !== normalizarId(userId)) && (
               <button
                 onClick={volverAMisPareos}
                 className="bg-white border border-indigo-300 text-indigo-700 px-3 py-2 rounded text-sm"
               >
-                Ver mis pareos
+                Dejar solo mis pareos
               </button>
             )}
           </div>
@@ -1104,7 +1145,7 @@ if(!esUuid(eventoActual?.id)) return
                     : "bg-white text-gray-700 border-gray-300 hover:border-slate-400"
                 }`}
               >
-                {new Date(e.fecha).toLocaleDateString("es-ES", { timeZone: "UTC" })}
+                {formatEventDate(e.fecha, "es-ES")}
               </button>
             ))}
           </div>
@@ -1143,6 +1184,46 @@ if(!esUuid(eventoActual?.id)) return
       >
         Refrescar
       </button>
+
+      {standings.length > 0 && (
+        <div className="mb-4 rounded-xl border border-yellow-200 bg-yellow-50 p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h3 className="font-bold text-yellow-900">Standings cargados</h3>
+              <p className="text-sm text-yellow-800">
+                Estos standings ya estan disponibles para este evento.
+              </p>
+            </div>
+            {modo !== "standings" && (
+              <button
+                onClick={() => setModo("standings")}
+                className="rounded bg-yellow-500 px-3 py-2 text-sm text-white"
+              >
+                Ver standings
+              </button>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            {standings.slice(0, 5).map(s => (
+              <div
+                key={`preview-standing-${s.player_id}`}
+                className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm"
+              >
+                <span className="w-10 font-semibold text-yellow-900">#{s.posicion}</span>
+                <span className="flex-1">{s.nombre}</span>
+                <span className="text-yellow-700">{s.player_id}</span>
+              </div>
+            ))}
+          </div>
+
+          {standings.length > 5 && (
+            <p className="mt-3 text-xs text-yellow-800">
+              Mostrando 5 de {standings.length} jugadores.
+            </p>
+          )}
+        </div>
+      )}
 
       {pendientes.length > 0 && modo === "rondas" && (
         <div className="bg-yellow-100 p-3 rounded mb-3 text-center">
