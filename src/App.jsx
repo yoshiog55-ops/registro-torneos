@@ -17,7 +17,7 @@ return(
 <Navbar/>
 <ToastHost/>
 
-<div className="p-8 bg-gray-100 min-h-screen">
+<div className="min-h-screen bg-gray-100 px-3 py-4 sm:px-4 md:px-6 lg:px-8">
 
 <Routes>
 

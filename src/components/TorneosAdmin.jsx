@@ -83,7 +83,7 @@ cargarTorneos()
 
 return(
 
-<div>
+<div className="space-y-4">
 
 <button
 onClick={volver}
@@ -92,7 +92,7 @@ className="mb-6 bg-gray-600 text-white px-4 py-2 rounded"
 ← Volver
 </button>
 
-<div className="flex justify-between items-center mb-6">
+<div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 
 <h2 className="text-2xl font-bold">
 Administrar Torneos
@@ -107,7 +107,7 @@ Crear torneo
 
 </div>
 
-<div className="bg-white rounded-xl shadow overflow-x-auto">
+<div className="-mx-3 overflow-x-auto rounded-xl bg-white shadow sm:mx-0">
 
 <table className="min-w-[700px] w-full">
 

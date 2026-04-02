@@ -190,9 +190,9 @@ setTelefono("")
 
 return(
 
-<div className="max-w-md mx-auto bg-white p-8 rounded-xl shadow">
+<div className="mx-auto w-full max-w-xl rounded-2xl bg-white p-4 shadow sm:p-6 md:p-8">
 
-<h2 className="text-2xl font-bold mb-6">
+<h2 className="mb-6 text-2xl font-bold sm:text-3xl">
 Registro de jugador
 </h2>
 
@@ -201,14 +201,14 @@ type="tel"
 inputMode="numeric"
 pattern="[0-9]*"
 placeholder="Player ID"
-className="border p-3 w-full mb-3 rounded"
+className="mb-3 w-full rounded border p-3 text-base"
 value={playerId}
 onChange={(e)=>setPlayerId(e.target.value.replace(/\D/g,''))}
 />
 
 <input
 placeholder="Nombre"
-className="border p-3 w-full mb-3 rounded"
+className="mb-3 w-full rounded border p-3 text-base"
 value={nombre}
 onChange={(e)=>setNombre(e.target.value.replace(/[^A-Za-zÁÉÍÓÚáéíóúÑñ ]/g,''))}
 />
@@ -218,7 +218,7 @@ type="tel"
 inputMode="numeric"
 pattern="[0-9]*"
 placeholder="Año nacimiento"
-className="border p-3 w-full mb-3 rounded"
+className="mb-3 w-full rounded border p-3 text-base"
 value={anio}
 maxLength={4}
 onChange={(e)=>setAnio(e.target.value.replace(/\D/g,''))}
@@ -229,7 +229,7 @@ type="tel"
 inputMode="numeric"
 pattern="[0-9]*"
 placeholder="Teléfono"
-className="border p-3 w-full mb-4 rounded"
+className="mb-4 w-full rounded border p-3 text-base"
 value={telefono}
 onChange={(e)=>setTelefono(e.target.value.replace(/\D/g,''))}
 />
@@ -242,7 +242,7 @@ onChange={(e)=>setTelefono(e.target.value.replace(/\D/g,''))}
 Selecciona el torneo
 </p>
 
-<div className="grid gap-3">
+<div className="grid gap-3 sm:grid-cols-2">
 
 {torneos.map(t=>{
 

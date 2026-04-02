@@ -6,7 +6,7 @@ return(
 
 <nav className="bg-[#0A2540] text-white shadow">
 
-<div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between p-4">
+<div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-3 py-4 sm:px-4 md:flex-row md:items-center md:justify-between">
 
 <div className="flex items-center gap-3">
 
@@ -21,7 +21,7 @@ Torneos
 
 </div>
 
-<div className="flex flex-wrap gap-4 md:gap-6 text-sm md:text-base mt-2 md:mt-0">
+<div className="flex flex-wrap gap-3 text-sm md:gap-6 md:text-base">
 
 <Link to="/" className="hover:text-[#00B7C3]">
 Torneo

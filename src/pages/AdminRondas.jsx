@@ -648,7 +648,7 @@ export default function AdminRondas() {
 
   return (
     <div className="space-y-5">
-      <div className="rounded-2xl bg-white p-5 shadow-sm border">
+      <div className="rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <h2 className="text-xl font-bold">Gestion de rondas y pareos</h2>
           <button
@@ -719,7 +719,7 @@ export default function AdminRondas() {
           Contexto: {torneoActual?.nombre || "Sin torneo"} {" > "} {eventoActual?.fecha || "Sin evento"} {" > "} {rondaActual ? `Ronda ${rondaActual.numero_ronda}` : "Sin ronda"}
         </div>
 
-        <div className="flex gap-2 mb-4">
+        <div className="mb-4 flex flex-wrap gap-2">
           <button
             onClick={() => setVista("pareos")}
             className={`px-3 py-1 rounded ${
@@ -757,7 +757,7 @@ export default function AdminRondas() {
         </div>
 
         {stats && (
-          <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="bg-gray-50 rounded-xl p-3 text-center">
               <p className="text-xs text-gray-500">Total</p>
               <p className="text-xl font-bold">{stats.total}</p>
@@ -817,7 +817,7 @@ export default function AdminRondas() {
             ))}
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="-mx-4 overflow-x-auto sm:mx-0">
             <table className="w-full min-w-[680px] text-sm">
               <thead>
                 <tr className="text-left border-b">
@@ -904,7 +904,7 @@ export default function AdminRondas() {
         )}
 
         {vista === "standings" && (
-          <div className="overflow-x-auto">
+          <div className="-mx-4 overflow-x-auto sm:mx-0">
             {standings.length === 0 ? (
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-600">
                 Este evento aun no tiene standings cargados.
@@ -933,7 +933,7 @@ export default function AdminRondas() {
         )}
       </div>
 
-      <div className="rounded-2xl bg-white p-5 shadow-sm border">
+      <div className="rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
         <SubirTDF />
       </div>
     </div>

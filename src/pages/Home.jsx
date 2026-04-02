@@ -140,7 +140,7 @@ setBusqueda("")
 
 return(
 
-<div className="max-w-md mx-auto bg-white p-8 rounded-xl shadow">
+<div className="mx-auto w-full max-w-xl rounded-2xl bg-white p-4 shadow sm:p-6 md:p-8">
 
 <div className="mb-4 bg-yellow-100 text-yellow-800 p-3 rounded text-center text-sm">
 
@@ -156,7 +156,7 @@ registro de jugadores
 
 </div>
 
-<h2 className="text-2xl font-bold mb-6 text-center">
+<h2 className="mb-6 text-center text-2xl font-bold sm:text-3xl">
 Inscripción rápida
 </h2>
 
@@ -165,7 +165,7 @@ type="tel"
 inputMode="numeric"
 pattern="[0-9]*"
 placeholder="Player ID o Teléfono"
-className="border p-3 w-full mb-4 rounded"
+className="mb-4 w-full rounded border p-3 text-base"
 value={busqueda}
 onChange={(e)=>setBusqueda(e.target.value.replace(/\D/g,''))}
 onKeyDown={(e)=>{
@@ -177,14 +177,14 @@ if(e.key==="Enter") buscarJugador(busqueda)
 
 <button
 onClick={()=>buscarJugador(busqueda)}
-className="bg-[#00B7C3] text-white w-full p-3 rounded mb-4"
+className="mb-4 w-full rounded bg-[#00B7C3] p-3 text-white"
 >
 Buscar jugador
 </button>
 
 {jugador && (
 
-<div className="bg-gray-100 p-4 rounded mb-4">
+<div className="mb-4 rounded-xl bg-gray-100 p-4">
 
 <p className="font-bold">{jugador.nombre}</p>
 <p>Player ID: {jugador.player_id}</p>
@@ -197,7 +197,7 @@ Buscar jugador
 Selecciona el torneo
 </p>
 
-<div className="grid gap-2">
+<div className="grid gap-2 sm:grid-cols-2">
 
 {torneos.map(t=>{
 

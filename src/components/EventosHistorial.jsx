@@ -57,7 +57,7 @@ export default function EventosHistorial() {
   }, [torneoSeleccionado])
 
   return (
-    <div className="bg-white rounded-xl shadow p-5">
+    <div className="rounded-xl bg-white p-4 shadow sm:p-5">
       <h2 className="text-xl font-bold mb-4">Historial de eventos</h2>
 
       <div className="mb-4">
@@ -90,7 +90,7 @@ export default function EventosHistorial() {
           No hay eventos para este torneo.
         </div>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="-mx-4 overflow-x-auto sm:mx-0">
           <table className="w-full min-w-[520px] text-sm">
             <thead>
               <tr className="text-left border-b">

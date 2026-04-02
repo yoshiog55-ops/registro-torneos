@@ -47,8 +47,8 @@ export default function MatchCard({
   }
 
   return (
-    <div className="bg-white p-4 rounded-xl shadow">
-      <div className="flex justify-between mb-2">
+    <div className="rounded-xl bg-white p-4 shadow sm:p-5">
+      <div className="mb-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <span className="font-bold">Mesa {match.mesa}</span>
 
         {match.estado === "confirmado" && (
@@ -102,11 +102,11 @@ export default function MatchCard({
 
       {!esBye && puedeReportar && (
         <div className="flex flex-col gap-2">
-          <div className="flex gap-2">
+          <div className="grid gap-2 sm:grid-cols-2">
             <button
               disabled={reportando || bloqueadoPorEstado}
               onClick={() => j1 && resolver(j1)}
-              className={`flex-1 py-2 rounded border-2 transition font-semibold ${
+              className={`w-full py-2 rounded border-2 text-sm transition font-semibold sm:text-base ${
                 match.confirmado && ganador === j1
                   ? "bg-green-600 text-white border-green-600"
                   : match.estado === "conflicto" &&
@@ -123,7 +123,7 @@ export default function MatchCard({
             <button
               disabled={reportando || bloqueadoPorEstado}
               onClick={() => j2 && resolver(j2)}
-              className={`flex-1 py-2 rounded border-2 transition font-semibold ${
+              className={`w-full py-2 rounded border-2 text-sm transition font-semibold sm:text-base ${
                 match.confirmado && ganador === j2
                   ? "bg-green-600 text-white border-green-600"
                   : match.estado === "conflicto" &&
@@ -141,7 +141,7 @@ export default function MatchCard({
           <button
             disabled={reportando || bloqueadoPorEstado}
             onClick={() => resolver("empate")}
-            className={`w-full py-2 rounded border-2 mt-2 transition font-semibold ${
+            className={`mt-2 w-full rounded border-2 py-2 text-sm transition font-semibold sm:text-base ${
               match.confirmado && esEmpate
                 ? "bg-yellow-500 text-white border-yellow-500"
                 : match.estado === "conflicto" && match.empate

@@ -636,7 +636,7 @@ Operacion del dia
 Inscripciones y control de registro
 </h2>
 
-<div className="flex flex-wrap items-center gap-4">
+<div className="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-center">
 
 <p className="font-bold text-lg">
 
@@ -653,7 +653,7 @@ Estado torneo:
 
 <button
 onClick={cerrarRegistro}
-className="bg-red-600 text-white px-4 py-2 rounded"
+className="bg-red-600 text-white px-4 py-2 rounded w-full sm:w-auto"
 >
 Cerrar registro
 </button>
@@ -662,21 +662,21 @@ Cerrar registro
 
 <button
 onClick={abrirRegistro}
-className="bg-green-600 text-white px-4 py-2 rounded"
+className="bg-green-600 text-white px-4 py-2 rounded w-full sm:w-auto"
 >
 Abrir registro
 </button>
 
 )}
 
-<div className="flex items-center gap-2">
+<div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
 
 <label className="font-bold">
 Torneo:
 </label>
 
 <select
-className="border p-2 rounded"
+className="w-full min-w-0 border p-2 rounded sm:w-auto"
 value={torneoSeleccionado}
 onChange={(e)=>setTorneoSeleccionado(e.target.value)}
 >
@@ -694,14 +694,14 @@ onChange={(e)=>setTorneoSeleccionado(e.target.value)}
 </div>
 
 {torneoSeleccionado !== "ALL" && (
-<div className="flex items-center gap-2">
+<div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
 
 <label className="font-bold">
 Evento:
 </label>
 
 <select
-className="border p-2 rounded"
+className="w-full min-w-0 border p-2 rounded sm:w-auto"
 value={eventoSeleccionado}
 onChange={(e)=>setEventoSeleccionado(e.target.value)}
 >
@@ -720,12 +720,12 @@ onChange={(e)=>setEventoSeleccionado(e.target.value)}
 type="date"
 value={nuevaFechaEvento}
 onChange={(e)=>setNuevaFechaEvento(e.target.value)}
-className="border p-2 rounded"
+className="w-full min-w-0 border p-2 rounded sm:w-auto"
 />
 
 <button
 onClick={crearEventoDesdeInscritos}
-className="bg-indigo-600 text-white px-3 py-2 rounded"
+className="bg-indigo-600 text-white px-3 py-2 rounded w-full sm:w-auto"
 >
 Crear evento
 </button>
@@ -735,7 +735,7 @@ Crear evento
 
 <button
 onClick={cargarJugadores}
-className="bg-gray-700 text-white px-4 py-2 rounded"
+className="bg-gray-700 text-white px-4 py-2 rounded w-full sm:w-auto"
 >
 Recargar
 </button>

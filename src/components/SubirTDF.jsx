@@ -399,8 +399,8 @@ export default function SubirTDF() {
   }
 
   return (
-    <div className="p-4">
-      <h2 className="text-2xl font-bold mb-4">Subir TDF</h2>
+    <div className="p-1 sm:p-2">
+      <h2 className="mb-4 text-2xl font-bold sm:text-3xl">Subir TDF</h2>
 
       {/* Selector de Torneo */}
       <div className="mb-4">
@@ -455,18 +455,20 @@ export default function SubirTDF() {
       {/* Crear Evento */}
       <div className="mb-4">
         <label className="block text-sm font-medium mb-2">Nueva Fecha de Evento</label>
-        <input
-          type="date"
-          value={nuevaFecha}
-          onChange={(e) => setNuevaFecha(e.target.value)}
-          className="border p-2 rounded mr-2"
-        />
-        <button
-          onClick={crearNuevoEvento}
-          className="bg-blue-500 text-white px-4 py-2 rounded"
-        >
-          Crear Evento
-        </button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <input
+            type="date"
+            value={nuevaFecha}
+            onChange={(e) => setNuevaFecha(e.target.value)}
+            className="w-full rounded border p-2 sm:w-auto"
+          />
+          <button
+            onClick={crearNuevoEvento}
+            className="rounded bg-blue-500 px-4 py-2 text-white sm:w-auto"
+          >
+            Crear Evento
+          </button>
+        </div>
       </div>
 
       {/* Subir Archivo */}
@@ -476,7 +478,7 @@ export default function SubirTDF() {
           type="file"
           accept=".tdf"
           onChange={handleFileChange}
-          className="border p-2 rounded"
+          className="block w-full max-w-full overflow-hidden rounded border p-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium"
         />
       </div>
 
@@ -491,12 +493,12 @@ export default function SubirTDF() {
 
           <div className="max-h-56 overflow-y-auto pr-1 space-y-2">
             {(preview?.rounds || []).map((r, i) => (
-              <div key={i} className="bg-white border rounded p-2 flex items-center justify-between">
+              <div key={i} className="flex flex-col gap-2 rounded border bg-white p-2 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-sm font-medium">Ronda {r.numero}</span>
                 <button
                   onClick={() => subirRonda(i)}
                   disabled={loading}
-                  className="bg-green-500 text-white px-3 py-1 rounded text-sm"
+                  className="rounded bg-green-500 px-3 py-2 text-sm text-white sm:py-1"
                 >
                   Subir
                 </button>
