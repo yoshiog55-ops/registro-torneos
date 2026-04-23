@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { supabase } from "../supabase"
 import SubirTDF from "../components/SubirTDF"
+import StandingsManualModal from "../components/StandingsManualModal"
+import { sincronizarStandings } from "../service/standingsService"
 import { formatEventDate, esHoy } from "../utils/date"
 import { obtenerEventos, desactivarTorneosAntiguos } from "../utils/evento"
+import { calcularStandingsDesdeMatches } from "../utils/standings"
 import { showToast } from "../utils/toast"
 
 function estadoDeMatch(match) {
@@ -92,6 +95,10 @@ export default function AdminRondas() {
   const [cargando, setCargando] = useState(false)
   const [vista, setVista] = useState("pareos")
   const [filtroEstado, setFiltroEstado] = useState("todos")
+  const [mostrarModalStandings, setMostrarModalStandings] = useState(false)
+  const [standingsCalculados, setStandingsCalculados] = useState([])
+  const [resumenStandings, setResumenStandings] = useState({ pendientes: 0, total: 0 })
+  const [guardandoStandings, setGuardandoStandings] = useState(false)
   const [permisoNotificaciones, setPermisoNotificaciones] = useState(
     typeof window !== "undefined" && "Notification" in window
       ? window.Notification.permission
@@ -682,6 +689,89 @@ export default function AdminRondas() {
     await cargarDetalleRonda()
   }
 
+  const abrirPreviewStandings = async () => {
+    if (!eventoSeleccionado || !torneoSeleccionado) {
+      showToast("Selecciona un torneo y un evento primero", "warning")
+      return
+    }
+
+    setCargando(true)
+
+    try {
+      const { data: matchesEvento, error: errorMatches } = await supabase
+        .from("matches")
+        .select("*")
+        .eq("evento_id", eventoSeleccionado)
+        .order("ronda_id", { ascending: true })
+        .order("mesa", { ascending: true })
+
+      if (errorMatches) {
+        throw errorMatches
+      }
+
+      const ids = [
+        ...new Set(
+          (matchesEvento || [])
+            .flatMap(match => [match.jugador1_id, match.jugador2_id])
+            .filter(Boolean)
+        )
+      ]
+
+      let mapaJugadores = {}
+
+      if (ids.length > 0) {
+        const { data: jugadores, error: errorJugadores } = await supabase
+          .from("jugadores")
+          .select("player_id, nombre")
+          .in("player_id", ids)
+
+        if (errorJugadores) {
+          throw errorJugadores
+        }
+
+        mapaJugadores = (jugadores || []).reduce((acc, jugador) => {
+          acc[jugador.player_id] = jugador.nombre
+          return acc
+        }, {})
+      }
+
+      const calculados = calcularStandingsDesdeMatches(matchesEvento || [], mapaJugadores)
+
+      if (calculados.length === 0) {
+        showToast("No hay resultados suficientes para calcular standings", "warning")
+        return
+      }
+
+      setStandingsCalculados(calculados)
+      setResumenStandings({
+        pendientes: (matchesEvento || []).filter(match => !match.confirmado).length,
+        total: (matchesEvento || []).length
+      })
+      setMostrarModalStandings(true)
+    } catch (error) {
+      showToast(`No se pudieron calcular los standings: ${error.message}`, "error")
+    } finally {
+      setCargando(false)
+    }
+  }
+
+  const subirStandingsCalculados = async (lista) => {
+    if (!eventoSeleccionado || !torneoSeleccionado) return
+
+    setGuardandoStandings(true)
+
+    try {
+      await sincronizarStandings(eventoSeleccionado, torneoSeleccionado, lista)
+      await cargarStandings()
+      setMostrarModalStandings(false)
+      showToast("Standings subidos correctamente", "success")
+    } catch (error) {
+      showToast(`Error al subir standings: ${error.message}`, "error")
+    } finally {
+      setGuardandoStandings(false)
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div className="rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
@@ -804,6 +894,13 @@ export default function AdminRondas() {
             }`}
           >
             Standings
+          </button>
+          <button
+            onClick={abrirPreviewStandings}
+            disabled={!eventoSeleccionado || cargando}
+            className="px-3 py-1 rounded bg-slate-800 text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {cargando ? "Calculando..." : "Calcular standings"}
           </button>
         </div>
 
@@ -1014,6 +1111,16 @@ export default function AdminRondas() {
       <div className="rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
         <SubirTDF />
       </div>
+
+      <StandingsManualModal
+        open={mostrarModalStandings}
+        standings={standingsCalculados}
+        pendientes={resumenStandings.pendientes}
+        totalMatches={resumenStandings.total}
+        loading={guardandoStandings}
+        onClose={() => !guardandoStandings && setMostrarModalStandings(false)}
+        onConfirm={subirStandingsCalculados}
+      />
     </div>
   )
 }

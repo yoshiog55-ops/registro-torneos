@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react"
 import { parseTDF } from "../utils/parseTDF"
 import { guardarRonda } from "../service/rondasService"
+import { sincronizarStandings } from "../service/standingsService"
 import { supabase } from "../supabase"
 import { obtenerEventos, crearEvento } from "../utils/evento"
 import { formatEventDate, getMexicoDateInputValue, esHoy } from "../utils/date"
@@ -338,79 +339,7 @@ export default function SubirTDF() {
 
     setLoading(true)
     try {
-      const nuevosStandings = (preview?.standings || []).map(s => ({
-        torneo_id: torneoSeleccionado,
-        player_id: s.player_id,
-        posicion: s.posicion,
-        evento_id: eventoSeleccionado
-      }))
-
-      const { data: existentes, error: errorExistentes } = await supabase
-        .from("standings")
-        .select("id, player_id")
-        .eq("evento_id", eventoSeleccionado)
-
-      if (errorExistentes) {
-        throw errorExistentes
-      }
-
-      const mapaExistentes = new Map(
-        (existentes || []).map(item => [String(item.player_id), item.id])
-      )
-      const mapaNuevos = new Map(
-        nuevosStandings.map(item => [String(item.player_id), item])
-      )
-
-      const playerIdsAEliminar = (existentes || [])
-        .map(item => String(item.player_id))
-        .filter(playerId => !mapaNuevos.has(playerId))
-
-      if (playerIdsAEliminar.length > 0) {
-        const { error: errorDelete } = await supabase
-          .from("standings")
-          .delete()
-          .eq("evento_id", eventoSeleccionado)
-          .in("player_id", playerIdsAEliminar)
-
-        if (errorDelete) {
-          throw errorDelete
-        }
-      }
-
-      const updates = []
-      const inserts = []
-
-      nuevosStandings.forEach(item => {
-        const standingId = mapaExistentes.get(String(item.player_id))
-        if (standingId) {
-          updates.push(
-            supabase
-              .from("standings")
-              .update({
-                posicion: item.posicion,
-                torneo_id: item.torneo_id
-              })
-              .eq("id", standingId)
-          )
-        } else {
-          inserts.push(item)
-        }
-      })
-
-      if (updates.length > 0) {
-        const resultadosUpdates = await Promise.all(updates)
-        const updateConError = resultadosUpdates.find(r => r.error)
-        if (updateConError?.error) {
-          throw updateConError.error
-        }
-      }
-
-      if (inserts.length > 0) {
-        const { error: errorInsert } = await supabase.from("standings").insert(inserts)
-        if (errorInsert) {
-          throw errorInsert
-        }
-      }
+      await sincronizarStandings(eventoSeleccionado, torneoSeleccionado, preview?.standings || [])
 
       setMensaje("Standings subidos exitosamente")
       showToast("Standings sincronizados correctamente", "success")
