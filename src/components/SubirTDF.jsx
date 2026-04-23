@@ -3,7 +3,7 @@ import { parseTDF } from "../utils/parseTDF"
 import { guardarRonda } from "../service/rondasService"
 import { supabase } from "../supabase"
 import { obtenerEventos, crearEvento } from "../utils/evento"
-import { formatEventDate, getMexicoDateInputValue } from "../utils/date"
+import { formatEventDate, getMexicoDateInputValue, esHoy } from "../utils/date"
 import { showToast } from "../utils/toast"
 
 export default function SubirTDF() {
@@ -57,9 +57,15 @@ export default function SubirTDF() {
     const lista = data || []
     setTorneos(lista)
 
-    if (lista.length === 1) {
-      setTorneoSeleccionado(lista[0].id)
+    if (lista.length === 0) {
+      setTorneoSeleccionado("")
+      return
     }
+
+    setTorneoSeleccionado(actual => {
+      const existeActual = lista.some(t => String(t.id) === String(actual))
+      return String(existeActual ? actual : lista[0].id)
+    })
   }
 
   // =========================
@@ -90,12 +96,31 @@ export default function SubirTDF() {
   const cargarEventos = async () => {
     const data = await obtenerEventos(torneoSeleccionado)
     setEventos(data)
-    if (data.length > 0) {
-      setEventoSeleccionado(data[0].id)
+
+    if (data.length === 0) {
+      setEventoSeleccionado("")
+      return
     }
+
+    setEventoSeleccionado(actual => {
+      const existeActual = data.some(ev => String(ev.id) === String(actual))
+      return String(existeActual ? actual : data[0].id)
+    })
   }
 
   const crearNuevoEvento = async () => {
+    if (!torneoSeleccionado) {
+      setMensaje("Selecciona un torneo primero")
+      showToast("Selecciona un torneo primero", "warning")
+      return
+    }
+
+    if (yaExisteEventoVisibleEnFecha) {
+      setMensaje("Ya existe un evento visible en esa fecha. Archivarlo primero si necesitas otro.")
+      showToast("Ya existe un evento visible en esa fecha", "warning")
+      return
+    }
+
     try {
       const nuevo = await crearEvento(torneoSeleccionado, nuevaFecha)
       setEventos(prev => [nuevo, ...prev])
@@ -398,64 +423,97 @@ export default function SubirTDF() {
     setLoading(false)
   }
 
+  const yaExisteEventoVisibleEnFecha = Boolean(
+    torneoSeleccionado && eventos.some(ev => ev.fecha === nuevaFecha)
+  )
+
   return (
     <div className="p-1 sm:p-2">
       <h2 className="mb-4 text-2xl font-bold sm:text-3xl">Subir TDF</h2>
 
-      {/* Selector de Torneo */}
-      <div className="mb-4">
-        <label className="block text-sm font-medium mb-2">Torneo</label>
-        <select
-          value={torneoSeleccionado}
-          onChange={(e) => setTorneoSeleccionado(e.target.value)}
-          className="border p-2 rounded w-full"
-        >
-          <option value="">Seleccionar torneo</option>
+      <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <label className="mb-3 block text-sm font-semibold">Torneo</label>
+        <div className="grid gap-2 sm:grid-cols-2">
           {torneos.map(t => (
-            <option key={t.id} value={t.id}>{t.nombre}</option>
+            <button
+              key={`admin-tdf-${t.id}`}
+              type="button"
+              onClick={() => setTorneoSeleccionado(String(t.id))}
+              className={`rounded-lg border-2 p-3 text-left font-semibold transition ${
+                String(torneoSeleccionado) === String(t.id)
+                  ? "border-blue-700 bg-blue-600 text-white"
+                  : "border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
+              }`}
+            >
+              {t.nombre}
+            </button>
           ))}
-        </select>
+        </div>
+      </div>
 
-        {torneos.length > 1 && (
-          <div className="mt-2 flex flex-wrap gap-2">
-            {torneos.map(t => (
-              <button
-                key={`admin-tdf-${t.id}`}
-                onClick={() => setTorneoSeleccionado(String(t.id))}
-                className={`px-3 py-1 rounded-full text-sm border ${
-                  String(torneoSeleccionado) === String(t.id)
-                    ? "bg-blue-600 text-white border-blue-600"
-                    : "bg-white text-gray-700 border-gray-300"
-                }`}
-              >
-                {t.nombre}
-              </button>
-            ))}
+      <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <label className="mb-3 block text-sm font-semibold">Evento</label>
+        {eventos.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3 text-sm text-slate-600">
+            No hay eventos visibles para este torneo.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {eventos.map(ev => {
+              const esEventoHoy = esHoy(ev.fecha)
+              const esActual = String(eventoSeleccionado) === String(ev.id)
+
+              return (
+                <button
+                  key={ev.id}
+                  type="button"
+                  onClick={() => setEventoSeleccionado(String(ev.id))}
+                  className={`w-full rounded-lg border-2 p-3 text-left font-semibold transition ${
+                    esEventoHoy
+                      ? esActual
+                        ? "border-green-700 bg-green-600 text-white shadow-lg"
+                        : "border-green-500 bg-green-50 text-green-700"
+                      : esActual
+                        ? "border-blue-700 bg-blue-600 text-white"
+                        : "border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="font-semibold">{formatEventDate(ev.fecha)}</div>
+                      <div className={`text-xs ${esActual ? "opacity-80" : "text-slate-500"}`}>{ev.fecha}</div>
+                    </div>
+                    {esEventoHoy && (
+                      <span className="rounded-full bg-yellow-300 px-3 py-1 text-xs font-bold text-yellow-900">
+                        HOY
+                      </span>
+                    )}
+                  </div>
+                </button>
+              )
+            })}
           </div>
         )}
       </div>
 
-      {/* Selector de Evento */}
-      <div className="mb-4">
-        <label className="block text-sm font-medium mb-2">Evento</label>
-        <select
-          value={eventoSeleccionado}
-          onChange={(e) => setEventoSeleccionado(e.target.value)}
-          className="border p-2 rounded w-full"
-        >
-          <option value="">Seleccionar evento</option>
-          {eventos.map(e => (
-              <option key={e.id} value={e.id}>
-              {e.fecha} - {formatEventDate(e.fecha, "es-ES")}
-            </option>
-          ))}
-        </select>
+      {/* Subir Archivo */}
+      <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <label className="mb-2 block text-sm font-semibold">Archivo TDF</label>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".tdf"
+          onChange={handleFileChange}
+          className="block w-full max-w-full overflow-hidden rounded border p-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium"
+        />
       </div>
 
-      {/* Crear Evento */}
-      <div className="mb-4">
-        <label className="block text-sm font-medium mb-2">Nueva Fecha de Evento</label>
-        <div className="flex flex-col gap-2 sm:flex-row">
+      <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+        <label className="mb-2 block text-sm font-semibold text-amber-900">Gestion de eventos</label>
+        <p className="mb-3 text-sm text-amber-800">
+          Usa esta seccion solo si necesitas abrir otra fecha. Si ya existe un evento visible para la fecha elegida, primero archivarlo desde historial.
+        </p>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <input
             type="date"
             value={nuevaFecha}
@@ -464,22 +522,21 @@ export default function SubirTDF() {
           />
           <button
             onClick={crearNuevoEvento}
-            className="rounded bg-blue-500 px-4 py-2 text-white sm:w-auto"
+            disabled={yaExisteEventoVisibleEnFecha || !torneoSeleccionado}
+            className={`rounded px-4 py-2 sm:w-auto ${
+              yaExisteEventoVisibleEnFecha || !torneoSeleccionado
+                ? "cursor-not-allowed bg-slate-300 text-slate-500"
+                : "bg-blue-600 text-white"
+            }`}
           >
-            Crear Evento
+            {yaExisteEventoVisibleEnFecha ? "Evento ya visible" : "Crear evento"}
           </button>
         </div>
-      </div>
-
-      {/* Subir Archivo */}
-      <div className="mb-4">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".tdf"
-          onChange={handleFileChange}
-          className="block w-full max-w-full overflow-hidden rounded border p-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium"
-        />
+        {yaExisteEventoVisibleEnFecha && (
+          <p className="mt-2 text-sm text-amber-900">
+            Ya hay un evento activo para {formatEventDate(nuevaFecha)}.
+          </p>
+        )}
       </div>
 
       {mensaje && <p className="text-red-500 mb-4">{mensaje}</p>}

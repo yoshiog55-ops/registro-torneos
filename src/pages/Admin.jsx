@@ -4,7 +4,7 @@ import ConsultaJugadores from "../components/ConsultaJugadores"
 import TorneosAdmin from "../components/TorneosAdmin"
 import EventosHistorial from "../components/EventosHistorial"
 import AdminRondas from "./AdminRondas"
-import { formatDateTimeInMexico, getMexicoDateInputValue } from "../utils/date"
+import { formatDateTimeInMexico, getMexicoDateInputValue, formatEventDate, esHoy } from "../utils/date"
 import { obtenerEventos, crearEvento } from "../utils/evento"
 import { showToast } from "../utils/toast"
 
@@ -91,9 +91,16 @@ if(data){
 
 setTorneos(data)
 
-if(data){
-  setTorneos(data)
+if(data.length === 0){
+  setTorneoSeleccionado("ALL")
+  return
 }
+
+setTorneoSeleccionado(actual => {
+  if(actual === "ALL") return actual
+  const existeActual = data.some(t => String(t.id) === String(actual))
+  return existeActual ? actual : String(data[0].id)
+})
 }
 }
 
@@ -376,7 +383,14 @@ useEffect(() => {
     const detail = event?.detail || {}
     const torneoId = String(detail.torneo_id || "")
 
-    if(torneoSeleccionado !== "ALL" && torneoId && String(torneoSeleccionado) !== torneoId){
+    await cargarTorneos()
+
+    if(
+      torneoSeleccionado !== "ALL" &&
+      torneoId &&
+      String(torneoSeleccionado) !== torneoId &&
+      !["torneo_desactivado", "torneo_activado", "torneo_eliminado", "torneo_creado", "torneo_editado"].includes(String(detail.tipo || ""))
+    ){
       return
     }
 
@@ -410,6 +424,12 @@ async function crearEventoDesdeInscritos(){
   if(!torneoSeleccionado || torneoSeleccionado === "ALL"){
     setMensaje("Selecciona un torneo especifico para crear evento")
     showToast("Selecciona un torneo especifico para crear evento", "warning")
+    return
+  }
+
+  if(yaExisteEventoVisibleEnFecha){
+    setMensaje("Ya existe un evento activo en esa fecha. Archivarlo primero para crear otro.")
+    showToast("Ya existe un evento activo en esa fecha", "warning")
     return
   }
 
@@ -502,6 +522,7 @@ const torneoActualNombre = torneoSeleccionado === "ALL"
 const eventoActualNombre = eventoSeleccionado
   ? eventos.find(ev => String(ev.id) === String(eventoSeleccionado))?.fecha || "Evento seleccionado"
   : "Todos los eventos"
+const yaExisteEventoVisibleEnFecha = torneoSeleccionado !== "ALL" && eventos.some(ev => ev.fecha === nuevaFechaEvento)
 
 if(!auth){
 
@@ -694,44 +715,90 @@ onChange={(e)=>setTorneoSeleccionado(e.target.value)}
 </div>
 
 {torneoSeleccionado !== "ALL" && (
-<div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+<div className="w-full flex flex-col gap-3">
 
-<label className="font-bold">
-Evento:
+<div>
+<label className="font-bold mb-2 block">
+🎯 Evento
 </label>
 
-<select
-className="w-full min-w-0 border p-2 rounded sm:w-auto"
-value={eventoSeleccionado}
-onChange={(e)=>setEventoSeleccionado(e.target.value)}
+<div className="flex flex-col gap-2">
+<button
+onClick={() => setEventoSeleccionado("")}
+className={`p-2 rounded-lg border-2 font-semibold text-left transition ${
+  eventoSeleccionado === ""
+    ? "bg-blue-600 border-blue-700 text-white"
+    : "bg-gray-50 border-gray-300 text-gray-700 hover:bg-gray-100"
+}`}
 >
+Todos / sin evento
+</button>
 
-<option value="">Todos / sin evento</option>
+{eventos.map(ev => {
+  const esEventoHoy = esHoy(ev.fecha)
+  const esActual = String(eventoSeleccionado) === String(ev.id)
+  
+  return (
+    <button
+      key={ev.id}
+      onClick={() => setEventoSeleccionado(String(ev.id))}
+      className={`p-3 rounded-lg border-2 font-semibold text-left transition ${
+        esEventoHoy
+          ? esActual
+            ? "bg-green-600 border-green-700 text-white shadow-lg"
+            : "bg-green-50 border-green-500 text-green-700"
+          : ""
+      } ${
+        !esEventoHoy
+          ? esActual
+            ? "bg-blue-600 border-blue-700 text-white"
+            : "bg-gray-50 border-gray-300 text-gray-700 hover:bg-gray-100"
+          : ""
+      }`}
+    >
+      <div className="flex justify-between items-center">
+        <div>
+          <div className="font-semibold">{formatEventDate(ev.fecha)}</div>
+          <div className="text-xs opacity-75">{ev.fecha}</div>
+        </div>
+        {esEventoHoy && (
+          <span className="bg-yellow-300 text-yellow-900 px-3 py-1 rounded-full text-xs font-bold">
+            HOY 🔥
+          </span>
+        )}
+      </div>
+    </button>
+  )
+})}
+</div>
+</div>
 
-{eventos.map(ev=>(
-  <option key={ev.id} value={ev.id}>
-    {ev.fecha}
-  </option>
-))}
-
-</select>
-
+<div className="flex gap-2">
 <input
 type="date"
 value={nuevaFechaEvento}
 onChange={(e)=>setNuevaFechaEvento(e.target.value)}
-className="w-full min-w-0 border p-2 rounded sm:w-auto"
+className="flex-1 border p-2 rounded"
 />
 
 <button
 onClick={crearEventoDesdeInscritos}
-className="bg-indigo-600 text-white px-3 py-2 rounded w-full sm:w-auto"
+disabled={yaExisteEventoVisibleEnFecha}
+className={`px-4 py-2 rounded whitespace-nowrap ${
+  yaExisteEventoVisibleEnFecha
+    ? "cursor-not-allowed bg-slate-300 text-slate-500"
+    : "bg-indigo-600 text-white"
+}`}
 >
-Crear evento
+{yaExisteEventoVisibleEnFecha ? "Evento ya creado" : "Crear evento"}
 </button>
+</div>
 
 </div>
+
 )}
+
+</div>
 
 <button
 onClick={cargarJugadores}
@@ -761,8 +828,6 @@ Contexto actual
 <p className="font-semibold">{eventoActualNombre}</p>
 </div>
 </div>
-</div>
-
 </div>
 
 <input
@@ -968,8 +1033,10 @@ Quitar
 
 <ConsultaJugadores
   volver={()=>setVista("torneo")}
+  torneos={torneos}
   torneoSeleccionado={torneoSeleccionado}
   eventoSeleccionado={eventoSeleccionado}
+  onTorneoSeleccionadoChange={setTorneoSeleccionado}
 />
 
 )}

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { supabase } from "../supabase"
 import SubirTDF from "../components/SubirTDF"
-import { formatEventDate } from "../utils/date"
-import { obtenerEventos } from "../utils/evento"
+import { formatEventDate, esHoy } from "../utils/date"
+import { obtenerEventos, desactivarTorneosAntiguos } from "../utils/evento"
 import { showToast } from "../utils/toast"
 
 function estadoDeMatch(match) {
@@ -208,6 +208,35 @@ export default function AdminRondas() {
     }
   }
 
+  const enviarNotificacionesPendientes = async () => {
+    setCargando(true)
+    try {
+      const response = await fetch(
+        'https://zjcbsamqjuuhijqpugna.supabase.co/functions/v1/send-notifications',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      )
+      
+      const result = await response.json()
+      
+      if (response.ok) {
+        showToast('Notificaciones enviadas correctamente', 'success')
+        console.log('Resultado:', result)
+      } else {
+        showToast('Error al enviar notificaciones: ' + (result.error || 'desconocido'), 'error')
+      }
+    } catch (error) {
+      console.error('Error:', error)
+      showToast('Error de conexión al enviar notificaciones', 'error')
+    } finally {
+      setCargando(false)
+    }
+  }
+
   useEffect(() => {
     cargarTorneos()
   }, [])
@@ -281,8 +310,12 @@ export default function AdminRondas() {
       const eventoId = String(detail.evento_id || "")
       const tipo = String(detail.tipo || "")
 
+      await cargarTorneos()
+
       if (torneoSeleccionado && torneoId && String(torneoSeleccionado) !== torneoId) {
-        return
+        if (!["torneo_desactivado", "torneo_activado", "torneo_eliminado", "torneo_creado", "torneo_editado"].includes(tipo)) {
+          return
+        }
       }
 
       const necesitaRefrescarEventos = tipo === "evento_archivado" || tipo === "evento_creado"
@@ -397,6 +430,9 @@ export default function AdminRondas() {
   }
 
   const cargarTorneos = async () => {
+    // Desactivar torneos cuya fecha ya pasó
+    await desactivarTorneosAntiguos()
+
     const { data } = await supabase
       .from("torneos")
       .select("*")
@@ -651,13 +687,22 @@ export default function AdminRondas() {
       <div className="rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <h2 className="text-xl font-bold">Gestion de rondas y pareos</h2>
-          <button
-            onClick={refrescarTodo}
-            disabled={cargando}
-            className="bg-gray-700 text-white px-4 py-2 rounded"
-          >
-            {cargando ? "Actualizando..." : "Refrescar"}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={enviarNotificacionesPendientes}
+              disabled={cargando}
+              className="bg-green-600 text-white px-4 py-2 rounded"
+            >
+              {cargando ? "Enviando..." : "📨 Enviar notificaciones"}
+            </button>
+            <button
+              onClick={refrescarTodo}
+              disabled={cargando}
+              className="bg-gray-700 text-white px-4 py-2 rounded"
+            >
+              {cargando ? "Actualizando..." : "Refrescar"}
+            </button>
+          </div>
         </div>
 
         <div className="mb-4">
@@ -683,28 +728,52 @@ export default function AdminRondas() {
 
         <div className="grid md:grid-cols-2 gap-4 mb-4">
           <div>
-            <label className="block text-sm font-semibold mb-2">Evento</label>
-            <select
-              value={eventoSeleccionado}
-              onChange={e => setEventoSeleccionado(e.target.value)}
-              disabled={!torneoSeleccionado || eventos.length === 0}
-              className="border p-2 rounded w-full disabled:bg-gray-100"
-            >
-              <option value="">Selecciona evento</option>
-              {eventos.map(ev => (
-                <option key={ev.id} value={String(ev.id)}>
-                  {ev.fecha} - {formatearFechaEvento(ev.fecha)}
-                </option>
-              ))}
-            </select>
+            <label className="block text-sm font-semibold mb-3">🎯 Evento</label>
+            <div className="flex flex-col gap-2">
+              {eventos.length === 0 ? (
+                <p className="text-gray-500 text-sm">No hay eventos disponibles</p>
+              ) : (
+                eventos.map(ev => {
+                  const esEventoHoy = esHoy(ev.fecha)
+                  const esActual = String(eventoSeleccionado) === String(ev.id)
+                  
+                  return (
+                    <button
+                      key={ev.id}
+                      onClick={() => setEventoSeleccionado(String(ev.id))}
+                      disabled={!torneoSeleccionado}
+                      className={`p-3 rounded-lg border-2 font-semibold text-left transition ${
+                        esEventoHoy
+                          ? esActual
+                            ? "bg-green-600 border-green-700 text-white shadow-lg"
+                            : "bg-green-50 border-green-500 text-green-700"
+                          : ""
+                      } ${
+                        !esEventoHoy
+                          ? esActual
+                            ? "bg-blue-600 border-blue-700 text-white"
+                            : "bg-gray-50 border-gray-300 text-gray-700 hover:bg-gray-100"
+                          : ""
+                      }`}
+                    >
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <div className="font-semibold">{formatearFechaEvento(ev.fecha)}</div>
+                          <div className="text-xs opacity-75">{ev.fecha}</div>
+                        </div>
+                        {esEventoHoy && (
+                          <span className="bg-yellow-300 text-yellow-900 px-3 py-1 rounded-full text-xs font-bold">
+                            HOY 🔥
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  )
+                })
+              )}
+            </div>
           </div>
         </div>
-
-        {eventoActual && (
-          <p className="text-sm text-gray-600 mb-3">
-            Evento actual: {eventoActual.fecha} ({formatearFechaEvento(eventoActual.fecha)})
-          </p>
-        )}
 
         {typeof window !== "undefined" && "Notification" in window && permisoNotificaciones !== "granted" && (
           <button
@@ -757,7 +826,7 @@ export default function AdminRondas() {
         </div>
 
         {stats && (
-          <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-4">
             <div className="bg-gray-50 rounded-xl p-3 text-center">
               <p className="text-xs text-gray-500">Total</p>
               <p className="text-xl font-bold">{stats.total}</p>
@@ -769,6 +838,15 @@ export default function AdminRondas() {
             <div className="bg-orange-50 rounded-xl p-3 text-center">
               <p className="text-xs text-orange-700">Pendientes</p>
               <p className="text-xl font-bold text-orange-700">{stats.pendientes}</p>
+            </div>
+            <div className="bg-blue-50 rounded-xl p-3 text-center">
+              <button
+                onClick={enviarNotificacionesPendientes}
+                disabled={cargando}
+                className="bg-green-600 text-white px-3 py-1 rounded text-sm w-full"
+              >
+                {cargando ? "..." : "📨 Enviar"}
+              </button>
             </div>
           </div>
         )}

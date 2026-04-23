@@ -62,4 +62,15 @@ export function formatDateTimeInMexico(dateLike, locale = "es-MX") {
   })
 }
 
+/**
+ * Verifica si una fecha es "hoy" en zona México
+ * @param {string|Date} dateLike - Fecha a comparar (formato YYYY-MM-DD o Date)
+ * @returns {boolean} true si es hoy, false caso contrario
+ */
+export function esHoy(dateLike) {
+  const fechaHoy = getMexicoDateInputValue()
+  const fechaComparar = typeof dateLike === "string" ? dateLike : getMexicoDateInputValue(dateLike)
+  return fechaComparar === fechaHoy
+}
+
 export { MEXICO_TIME_ZONE }

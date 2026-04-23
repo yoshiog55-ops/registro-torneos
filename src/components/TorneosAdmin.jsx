@@ -5,6 +5,14 @@ export default function TorneosAdmin({volver}){
 
 const [torneos,setTorneos]=useState([])
 
+function notificarCambioTorneo(tipo, torneoId = ""){
+window.dispatchEvent(
+  new CustomEvent("torneo:data-updated", {
+    detail: { torneo_id: String(torneoId || ""), tipo }
+  })
+)
+}
+
 useEffect(()=>{
 cargarTorneos()
 },[])
@@ -36,6 +44,7 @@ activo:true
 })
 
 cargarTorneos()
+notificarCambioTorneo("torneo_creado")
 
 }
 
@@ -53,6 +62,7 @@ descripcion
 .eq("id",t.id)
 
 cargarTorneos()
+notificarCambioTorneo("torneo_editado", t.id)
 
 }
 
@@ -64,6 +74,7 @@ await supabase
 .eq("id",t.id)
 
 cargarTorneos()
+notificarCambioTorneo(t.activo ? "torneo_desactivado" : "torneo_activado", t.id)
 
 }
 
@@ -78,6 +89,7 @@ await supabase
 .eq("id",t.id)
 
 cargarTorneos()
+notificarCambioTorneo("torneo_eliminado", t.id)
 
 }
 

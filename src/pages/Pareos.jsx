@@ -86,6 +86,30 @@ export default function Pareos() {
     init()
   }, [])
 
+const cargarTorneosActivos = async () => {
+  const { data: torneosData } = await supabase
+    .from("torneos")
+    .select("*")
+    .eq("activo", true)
+
+  const listaTorneos = torneosData || []
+  setTorneos(listaTorneos)
+
+  if(listaTorneos.length === 0){
+    setTorneoSeleccionado("")
+    return []
+  }
+
+  setTorneoSeleccionado(actual => {
+    const guardado = localStorage.getItem("pareos_torneo_id")
+    const existeActual = listaTorneos.find(t => String(t.id) === String(actual))
+    const existeGuardado = listaTorneos.find(t => String(t.id) === String(guardado))
+    return String(existeActual?.id || existeGuardado?.id || listaTorneos[0].id)
+  })
+
+  return listaTorneos
+}
+
 const init = async () => {
 
   const { data } = await supabase.auth.getSession()
@@ -101,20 +125,7 @@ const init = async () => {
   }
 
   // 🔥 obtener torneos activos
-  const { data: torneosData } = await supabase
-    .from("torneos")
-    .select("*")
-    .eq("activo", true)
-
-  const listaTorneos = torneosData || []
-  setTorneos(listaTorneos)
-
-  if(listaTorneos.length > 0){
-    const guardado = localStorage.getItem("pareos_torneo_id")
-    const existe = listaTorneos.find(t => String(t.id) === String(guardado))
-    const torneoInicial = existe ? existe.id : listaTorneos[0].id
-    setTorneoSeleccionado(String(torneoInicial))
-  }
+  await cargarTorneosActivos()
 
 }
 
@@ -312,6 +323,15 @@ useEffect(() => {
   window.addEventListener("torneo:data-updated", onDataUpdated)
   return () => window.removeEventListener("torneo:data-updated", onDataUpdated)
 }, [torneoSeleccionado, eventoSeleccionado, eventoActual?.id, modo, rondaSeleccionada])
+
+useEffect(() => {
+  const onTorneoUpdate = async () => {
+    await cargarTorneosActivos()
+  }
+
+  window.addEventListener("torneo:data-updated", onTorneoUpdate)
+  return () => window.removeEventListener("torneo:data-updated", onTorneoUpdate)
+}, [])
 
 useEffect(() => {
   if(!eventoSeleccionado){

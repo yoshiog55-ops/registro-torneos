@@ -17,9 +17,16 @@ export default function EventosHistorial() {
 
     const lista = data || []
     setTorneos(lista)
-    if (lista.length > 0) {
-      setTorneoSeleccionado(String(lista[0].id))
+    if (lista.length === 0) {
+      setTorneoSeleccionado("")
+      setEventos([])
+      return
     }
+
+    setTorneoSeleccionado(actual => {
+      const existeActual = lista.some(t => String(t.id) === String(actual))
+      return existeActual ? actual : String(lista[0].id)
+    })
   }
 
   async function cargarEventos() {
@@ -49,6 +56,15 @@ export default function EventosHistorial() {
 
   useEffect(() => {
     cargarTorneos()
+  }, [])
+
+  useEffect(() => {
+    const onDataUpdated = async () => {
+      await cargarTorneos()
+    }
+
+    window.addEventListener("torneo:data-updated", onDataUpdated)
+    return () => window.removeEventListener("torneo:data-updated", onDataUpdated)
   }, [])
 
   useEffect(() => {

@@ -2,7 +2,7 @@ import { useState,useEffect } from "react"
 import { supabase } from "../supabase"
 import { Link } from "react-router-dom"
 import { getMexicoDateInputValue } from "../utils/date"
-import { esErrorDuplicado, obtenerEventoActual } from "../utils/evento"
+import { esErrorDuplicado, obtenerEventoActual, asegurarEventoDelDia, desactivarTorneosAntiguos } from "../utils/evento"
 
 export default function Home(){
 
@@ -19,7 +19,19 @@ cargarTorneos()
 
 },[])
 
+useEffect(() => {
+  const onDataUpdated = async () => {
+    await cargarTorneos()
+  }
+
+  window.addEventListener("torneo:data-updated", onDataUpdated)
+  return () => window.removeEventListener("torneo:data-updated", onDataUpdated)
+}, [])
+
 async function cargarTorneos(){
+
+// Desactivar torneos cuya fecha ya pasó
+await desactivarTorneosAntiguos()
 
 const {data}=await supabase
 .from("torneos")
@@ -30,18 +42,29 @@ if(data){
 
 setTorneos(data)
 
-if(data){
-
-setTorneos(data)
-
-if(data.length >= 1){
-setTorneoSeleccionado(data[0].id)
+if(data.length === 0){
+setTorneoSeleccionado(null)
+return []
 }
 
-}
+setTorneoSeleccionado(actual => {
+const existeActual = data.some(t => String(t.id) === String(actual))
+return existeActual ? actual : data[0].id
+})
+
+return data
 
 }
 
+setTorneoSeleccionado(null)
+return []
+
+}
+
+function resolverTorneoSeleccionado(listaTorneos, torneoActual){
+if(!listaTorneos.length) return null
+const activo = listaTorneos.find(t => String(t.id) === String(torneoActual))
+return activo?.id || listaTorneos[0].id
 }
 
 async function buscarJugador(valor){
@@ -72,7 +95,17 @@ setMensaje("Primero busca y selecciona un jugador valido")
 return
 }
 
-if(torneos.length>1 && !torneoSeleccionado){
+const torneosActualizados = await cargarTorneos()
+
+if(torneosActualizados.length === 0){
+setMensaje("No hay torneos activos disponibles")
+return
+}
+
+const torneoIdFinal = resolverTorneoSeleccionado(torneosActualizados, torneoSeleccionado)
+setTorneoSeleccionado(torneoIdFinal)
+
+if(torneosActualizados.length>1 && !torneoIdFinal){
 
 setMensaje("Selecciona el torneo")
 return
@@ -86,7 +119,10 @@ const {data:estado} = await supabase
 
 const late = !estado.registro_abierto
 
-const torneoIdFinal = torneoSeleccionado || torneos[0]?.id
+// Primero asegurar que existe evento para hoy
+await asegurarEventoDelDia(torneoIdFinal)
+
+// Luego obtener el evento
 const evento = await obtenerEventoActual(torneoIdFinal)
 
 if(!evento?.id){

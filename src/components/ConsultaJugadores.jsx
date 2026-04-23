@@ -1,13 +1,14 @@
 import { useState,useEffect } from "react"
 import { supabase } from "../supabase"
 import { getMexicoDateInputValue } from "../utils/date"
-import { obtenerEventoActual } from "../utils/evento"
+import { obtenerEventoActual, asegurarEventoDelDia } from "../utils/evento"
 
-export default function ConsultaJugadores({ volver, torneoSeleccionado, eventoSeleccionado }){
+export default function ConsultaJugadores({ volver, torneos = [], torneoSeleccionado, eventoSeleccionado, onTorneoSeleccionadoChange }){
     
 const [jugadores,setJugadores]=useState([])
 const [busqueda,setBusqueda]=useState("")
 const [mensaje,setMensaje]=useState("")
+const [torneoSeleccionadoLocal,setTorneoSeleccionadoLocal]=useState(torneoSeleccionado)
 
 const [editando,setEditando]=useState(null)
 
@@ -19,6 +20,10 @@ const [playerId,setPlayerId]=useState("")
 useEffect(()=>{
 cargarJugadores()
 },[])
+
+useEffect(()=>{
+setTorneoSeleccionadoLocal(torneoSeleccionado)
+},[torneoSeleccionado])
 
 async function cargarJugadores(){
 
@@ -33,13 +38,13 @@ setJugadores(data)
 
 async function inscribirJugador(j){
 
-if(!torneoSeleccionado || torneoSeleccionado === "ALL"){
+  if(!torneoSeleccionadoLocal || torneoSeleccionadoLocal === "ALL"){
   setMensaje("Selecciona un torneo especifico para inscribir")
   return
-}
+  }
 
-const today = getMexicoDateInputValue()
-const torneoIdFinal = torneoSeleccionado
+  const today = getMexicoDateInputValue()
+  const torneoIdFinal = torneoSeleccionadoLocal
 
 const {data:estado}=await supabase
 .from("torneo_estado")
@@ -51,6 +56,8 @@ const late = !estado.registro_abierto
 let eventoIdFinal = eventoSeleccionado || null
 
 if(!eventoIdFinal){
+  // Asegurar que existe evento para hoy
+  await asegurarEventoDelDia(torneoIdFinal)
   const evento = await obtenerEventoActual(torneoIdFinal)
   eventoIdFinal = evento?.id || null
 }
@@ -210,6 +217,35 @@ Consulta de jugadores
 
 </div>
 
+{torneos.length > 1 && (
+<div className="mb-4">
+<p className="mb-2 text-sm font-bold">Torneo para inscribir</p>
+<div className="grid gap-2 sm:grid-cols-2">
+{torneos.map(t => {
+  const seleccionado = String(torneoSeleccionadoLocal) === String(t.id)
+  return (
+    <button
+    key={t.id}
+    type="button"
+    onClick={()=>{
+      const siguiente = String(t.id)
+      setTorneoSeleccionadoLocal(siguiente)
+      onTorneoSeleccionadoChange?.(siguiente)
+    }}
+    className={`rounded-lg border p-3 text-center font-semibold transition ${
+      seleccionado
+        ? "border-blue-700 bg-blue-600 text-white"
+        : "border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
+    }`}
+    >
+    {t.nombre}
+    </button>
+  )
+})}
+</div>
+</div>
+)}
+ 
 <input
 placeholder="Buscar jugador (nombre, player ID o telefono)"
 className="border p-3 mb-4 rounded w-full"
