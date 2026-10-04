@@ -24,12 +24,16 @@ export const guardarRonda = async (evento_id, ronda, opciones = {}) => {
   })
 
   const idsArray = Array.from(ids)
-  const { data: jugadoresDB } = await supabase
+  const { data: jugadoresDB, error: errorJugadores } = await supabase
     .from("jugadores")
     .select("player_id")
     .in("player_id", idsArray)
 
-  const existentes = new Set(jugadoresDB.map(j => j.player_id))
+  if (errorJugadores) {
+    throw errorJugadores
+  }
+
+  const existentes = new Set((jugadoresDB || []).map(j => j.player_id))
   const faltantes = idsArray.filter(id => id !== null && !existentes.has(id))
 
   if (faltantes.length > 0) {
@@ -42,6 +46,46 @@ export const guardarRonda = async (evento_id, ronda, opciones = {}) => {
     .select("id, status")
     .eq("evento_id", evento_id)
     .eq("numero_ronda", ronda.numero)
+
+  const { data: inscripcionesRetiradas, error: errorInscripcionesRetiradas } = await supabase
+    .from("inscripciones")
+    .select("jugador_id")
+    .eq("evento_id", evento_id)
+    .eq("retirado", true)
+
+  if (errorInscripcionesRetiradas) {
+    throw errorInscripcionesRetiradas
+  }
+
+  const idsInternosRetirados = (inscripcionesRetiradas || []).map(inscripcion => inscripcion.jugador_id)
+  let idsRetirados = new Set()
+
+  if (idsInternosRetirados.length > 0) {
+    const { data: jugadoresRetirados, error: errorJugadoresRetirados } = await supabase
+      .from("jugadores")
+      .select("player_id")
+      .in("id", idsInternosRetirados)
+
+    if (errorJugadoresRetirados) {
+      throw errorJugadoresRetirados
+    }
+
+    idsRetirados = new Set((jugadoresRetirados || []).map(jugador => String(jugador.player_id)))
+  }
+
+  const idsIncluidosRetirados = [
+    ...new Set(
+      ronda.matches
+        .flatMap(match => [match.jugador1_id, match.jugador2_id])
+        .filter(playerId => playerId && idsRetirados.has(String(playerId)))
+    )
+  ]
+
+  if (idsIncluidosRetirados.length > 0) {
+    throw new Error(
+      `La ronda ${ronda.numero} incluye jugadores retirados (${idsIncluidosRetirados.join(", ")}). Actualiza el TDF para excluirlos.`
+    )
+  }
 
   if (existente.length > 0) {
     const rondaExistente = existente[0]

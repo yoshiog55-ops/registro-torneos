@@ -41,6 +41,104 @@ export default function SubirTDF() {
     )
   }
 
+  const sincronizarRetirosTDF = async (hastaRonda = Infinity) => {
+    const retiros = (preview?.droppedPlayers || []).filter(
+      retiro => retiro.ronda <= hastaRonda
+    )
+    const playerIds = [...new Set(retiros.map(retiro => String(retiro.player_id)))]
+
+    if (playerIds.length === 0) {
+      return { retirados: 0, sinInscripcion: [] }
+    }
+
+    const { data: jugadores, error: errorJugadores } = await supabase
+      .from("jugadores")
+      .select("id, player_id")
+      .in("player_id", playerIds)
+
+    if (errorJugadores) throw errorJugadores
+
+    const jugadorPorPlayerId = new Map(
+      (jugadores || []).map(jugador => [String(jugador.player_id), jugador.id])
+    )
+    const jugadorIds = [...new Set(
+      playerIds.map(playerId => jugadorPorPlayerId.get(playerId)).filter(Boolean)
+    )]
+    const playerIdsEncontrados = new Set(jugadorPorPlayerId.keys())
+    const sinInscripcion = playerIds.filter(playerId => !playerIdsEncontrados.has(playerId))
+
+    if (jugadorIds.length === 0) {
+      return { retirados: 0, sinInscripcion }
+    }
+
+    const fechaEvento = eventos.find(e => String(e.id) === String(eventoSeleccionado))?.fecha
+
+    let consultaInscripciones = supabase
+      .from("inscripciones")
+      .select("id, jugador_id, retirado")
+      .in("jugador_id", jugadorIds)
+
+    // Inscripciones sin evento_id se vinculan por torneo y fecha del evento
+    consultaInscripciones = fechaEvento
+      ? consultaInscripciones.or(
+          `evento_id.eq.${eventoSeleccionado},and(evento_id.is.null,torneo_id.eq.${torneoSeleccionado},fecha.eq.${fechaEvento})`
+        )
+      : consultaInscripciones.eq("evento_id", eventoSeleccionado)
+
+    const { data: inscripciones, error: errorInscripciones } = await consultaInscripciones
+
+    if (errorInscripciones) throw errorInscripciones
+
+    const jugadorIdsInscritos = new Set(
+      (inscripciones || []).map(inscripcion => inscripcion.jugador_id)
+    )
+    const playerIdPorJugadorId = new Map(
+      [...jugadorPorPlayerId.entries()].map(([playerId, jugadorId]) => [jugadorId, playerId])
+    )
+    playerIds.forEach(playerId => {
+      const jugadorId = jugadorPorPlayerId.get(playerId)
+      if (jugadorId && !jugadorIdsInscritos.has(jugadorId)) {
+        sinInscripcion.push(playerId)
+      }
+    })
+
+    const inscripcionesAActualizar = (inscripciones || [])
+      .filter(inscripcion => !inscripcion.retirado)
+      .map(inscripcion => inscripcion.id)
+
+    if (inscripcionesAActualizar.length > 0) {
+      const { error: errorActualizar } = await supabase
+        .from("inscripciones")
+        .update({ retirado: true })
+        .in("id", inscripcionesAActualizar)
+
+      if (errorActualizar) throw errorActualizar
+    }
+
+    const idsActualizados = new Set(
+      (inscripciones || [])
+        .filter(inscripcion => inscripcionesAActualizar.includes(inscripcion.id))
+        .map(inscripcion => playerIdPorJugadorId.get(inscripcion.jugador_id))
+    )
+
+    return {
+      retirados: idsActualizados.size,
+      sinInscripcion: [...new Set(sinInscripcion)]
+    }
+  }
+
+  const mostrarResultadoRetiros = ({ retirados, sinInscripcion }) => {
+    if (retirados > 0) {
+      showToast(`${retirados} retiro(s) sincronizado(s) desde el TDF`, "success")
+    }
+    if (sinInscripcion.length > 0) {
+      showToast(
+        `No se pudieron vincular los retiros de estos Player ID: ${sinInscripcion.join(", ")}`,
+        "warning"
+      )
+    }
+  }
+
   // =========================
   // 🔥 CARGAR TORNEOS
   // =========================
@@ -265,7 +363,21 @@ export default function SubirTDF() {
     try {
       const ronda = preview.rounds[rondaIndex]
       await guardarRonda(eventoSeleccionado, ronda)
-      setMensaje("Ronda subida exitosamente")
+      let detalleRetiros = ""
+      try {
+        const resultadoRetiros = await sincronizarRetirosTDF(ronda.numero)
+        mostrarResultadoRetiros(resultadoRetiros)
+        detalleRetiros = resultadoRetiros.retirados > 0
+          ? ` ${resultadoRetiros.retirados} retiro(s) sincronizado(s) desde el TDF.`
+          : ""
+        if (resultadoRetiros.sinInscripcion.length > 0) {
+          detalleRetiros += ` No se pudieron vincular los retiros de estos Player ID: ${resultadoRetiros.sinInscripcion.join(", ")}.`
+        }
+      } catch (errorRetiros) {
+        detalleRetiros = ` La ronda quedó guardada, pero no se pudieron sincronizar los retiros: ${errorRetiros.message}`
+        showToast("Ronda guardada, pero falló la sincronización de retiros", "warning")
+      }
+      setMensaje(`Ronda subida exitosamente.${detalleRetiros}`)
       showToast(`Ronda ${ronda.numero} subida exitosamente`, "success")
       await cargarRondas()
       notificarActualizacion("ronda_subida")
@@ -285,7 +397,21 @@ export default function SubirTDF() {
 
         try {
           await guardarRonda(eventoSeleccionado, ronda, { forzarReemplazoFinalizada: true })
-          setMensaje(`Ronda ${ronda.numero} reemplazada exitosamente.`)
+          let detalleRetiros = ""
+          try {
+            const resultadoRetiros = await sincronizarRetirosTDF(ronda.numero)
+            mostrarResultadoRetiros(resultadoRetiros)
+            detalleRetiros = resultadoRetiros.retirados > 0
+              ? ` ${resultadoRetiros.retirados} retiro(s) sincronizado(s) desde el TDF.`
+              : ""
+            if (resultadoRetiros.sinInscripcion.length > 0) {
+              detalleRetiros += ` No se pudieron vincular los retiros de estos Player ID: ${resultadoRetiros.sinInscripcion.join(", ")}.`
+            }
+          } catch (errorRetiros) {
+            detalleRetiros = ` La ronda quedó guardada, pero no se pudieron sincronizar los retiros: ${errorRetiros.message}`
+            showToast("Ronda guardada, pero falló la sincronización de retiros", "warning")
+          }
+          setMensaje(`Ronda ${ronda.numero} reemplazada exitosamente.${detalleRetiros}`)
           showToast(`Ronda ${ronda.numero} reemplazada`, "success")
           await cargarRondas()
           notificarActualizacion("ronda_reemplazada")
@@ -313,7 +439,48 @@ export default function SubirTDF() {
 
     setLoading(true)
     try {
-      const nuevosStandings = (preview?.standings || []).map(s => ({
+      const resultadoRetiros = await sincronizarRetirosTDF()
+      mostrarResultadoRetiros(resultadoRetiros)
+
+      const { data: inscripcionesRetiradas, error: errorInscripcionesRetiradas } = await supabase
+        .from("inscripciones")
+        .select("jugador_id")
+        .eq("evento_id", eventoSeleccionado)
+        .eq("retirado", true)
+
+      if (errorInscripcionesRetiradas) {
+        throw errorInscripcionesRetiradas
+      }
+
+      const jugadorIdsRetirados = (inscripcionesRetiradas || []).map(inscripcion => inscripcion.jugador_id)
+      let playerIdsRetirados = new Set()
+
+      if (jugadorIdsRetirados.length > 0) {
+        const { data: jugadoresRetirados, error: errorJugadoresRetirados } = await supabase
+          .from("jugadores")
+          .select("player_id")
+          .in("id", jugadorIdsRetirados)
+
+        if (errorJugadoresRetirados) {
+          throw errorJugadoresRetirados
+        }
+
+        playerIdsRetirados = new Set(
+          (jugadoresRetirados || []).map(jugador => String(jugador.player_id))
+        )
+      }
+
+      // Retirados según el TDF, aunque no tengan inscripción en la app
+      ;(preview?.droppedPlayers || []).forEach(retiro => {
+        playerIdsRetirados.add(String(retiro.player_id))
+      })
+
+      const standingsPreview = preview?.standings || []
+      const standingsElegibles = standingsPreview.filter(
+        standing => !playerIdsRetirados.has(String(standing.player_id))
+      )
+      const jugadoresRetiradosExcluidos = standingsPreview.length - standingsElegibles.length
+      const nuevosStandings = standingsElegibles.map(s => ({
         torneo_id: torneoSeleccionado,
         player_id: s.player_id,
         posicion: s.posicion,
@@ -387,15 +554,74 @@ export default function SubirTDF() {
         }
       }
 
-      setMensaje("Standings subidos exitosamente")
-      showToast("Standings sincronizados correctamente", "success")
+      const mensajeExclusion = jugadoresRetiradosExcluidos > 0
+        ? ` Se excluyeron ${jugadoresRetiradosExcluidos} jugador(es) retirado(s); no recibirán tickets por este torneo.`
+        : ""
+      const mensajeRetirosNoVinculados = resultadoRetiros.sinInscripcion.length > 0
+        ? ` No se pudieron vincular los retiros de estos Player ID: ${resultadoRetiros.sinInscripcion.join(", ")}.`
+        : ""
+      setMensaje(`Standings subidos exitosamente.${mensajeExclusion}${mensajeRetirosNoVinculados}`)
+      showToast(
+        jugadoresRetiradosExcluidos > 0
+          ? `Standings sincronizados. ${jugadoresRetiradosExcluidos} jugador(es) retirado(s) no recibirán tickets.`
+          : "Standings sincronizados correctamente",
+        "success"
+      )
+
+      // Libera a los jugadores del evento para que puedan inscribirse a otro; no toca tickets
+      const { error: errorFinalizar } = await supabase
+        .from("inscripciones")
+        .update({ finalizada: true })
+        .eq("evento_id", eventoSeleccionado)
+        .eq("finalizada", false)
+
+      if (errorFinalizar) {
+        showToast(`Standings subidos, pero no se pudieron liberar las inscripciones: ${errorFinalizar.message}`, "warning")
+      }
+
       await cargarStandings()
       notificarActualizacion("standings_subidos")
+
+      // Los standings ya quedaron guardados; un fallo al pagar no los revierte y se puede reintentar con el botón
+      await pagarTickets({ automatico: true })
     } catch (error) {
       setMensaje("Error: " + error.message)
       showToast(`Error al subir standings: ${error.message}`, "error")
     }
     setLoading(false)
+  }
+
+  const pagarTickets = async ({ automatico = false } = {}) => {
+    if (!eventoSeleccionado) {
+      showToast("Selecciona un evento primero", "warning")
+      return
+    }
+
+    const { data: evento } = await supabase
+      .from("eventos")
+      .select("tickets_pagados")
+      .eq("id", eventoSeleccionado)
+      .single()
+
+    if (evento?.tickets_pagados) {
+      if (!automatico) showToast("Los tickets de este evento ya fueron pagados", "warning")
+      return
+    }
+
+    if (!automatico && !window.confirm("¿Pagar tickets de este evento según los standings subidos? Solo se puede hacer una vez.")) return
+
+    if (!automatico) setLoading(true)
+    const { error } = await supabase.rpc("pagar_tickets_evento", { p_evento_id: eventoSeleccionado })
+    if (!automatico) setLoading(false)
+
+    if (error) {
+      setMensaje("Error al pagar tickets: " + error.message)
+      showToast(`Standings subidos, pero falló el pago de tickets: ${error.message}`, "error")
+      return
+    }
+
+    showToast("Tickets pagados correctamente", "success")
+    notificarActualizacion("tickets_pagados")
   }
 
   return (
@@ -488,7 +714,10 @@ export default function SubirTDF() {
         <div className="mb-4 border rounded-xl p-3 bg-gray-50">
           <h3 className="text-lg font-semibold mb-2">Preview</h3>
           <p className="text-sm text-gray-600 mb-3">
-            Rondas detectadas: {preview?.rounds?.length || 0} | Standings: {preview?.standings?.length || 0}
+            Rondas detectadas: {preview?.rounds?.length || 0} | Standings: {preview?.standings?.length || 0} | Retiros: {preview?.droppedPlayers?.length || 0}
+          </p>
+          <p className="mb-3 text-sm font-medium text-amber-700">
+            Los jugadores retirados se excluyen de los standings y no reciben tickets.
           </p>
 
           <div className="max-h-56 overflow-y-auto pr-1 space-y-2">
@@ -515,6 +744,14 @@ export default function SubirTDF() {
               Subir Standings
             </button>
           )}
+
+          <button
+            onClick={() => pagarTickets()}
+            disabled={loading}
+            className="mt-3 ml-2 rounded bg-amber-500 px-4 py-2 text-white"
+          >
+            Pagar tickets
+          </button>
         </div>
       )}
 

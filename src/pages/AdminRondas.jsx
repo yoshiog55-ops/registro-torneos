@@ -649,8 +649,15 @@ export default function AdminRondas() {
   return (
     <div className="space-y-5">
       <div className="rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
+        <SubirTDF />
+      </div>
+
+      <div className="rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <h2 className="text-xl font-bold">Gestion de rondas y pareos</h2>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Pareos, standings y carga de archivos</p>
+            <h2 className="text-xl font-bold">Rondas y pareos</h2>
+          </div>
           <button
             onClick={refrescarTodo}
             disabled={cargando}
@@ -931,10 +938,6 @@ export default function AdminRondas() {
             )}
           </div>
         )}
-      </div>
-
-      <div className="rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
-        <SubirTDF />
       </div>
     </div>
   )

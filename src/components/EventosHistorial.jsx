@@ -58,7 +58,10 @@ export default function EventosHistorial() {
 
   return (
     <div className="rounded-xl bg-white p-4 shadow sm:p-5">
-      <h2 className="text-xl font-bold mb-4">Historial de eventos</h2>
+      <div className="mb-4">
+<p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Archivar y restaurar eventos</p>
+<h2 className="text-xl font-bold">Historial de eventos</h2>
+</div>
 
       <div className="mb-4">
         <p className="text-sm font-semibold mb-2">Torneo</p>

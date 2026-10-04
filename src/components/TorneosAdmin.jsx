@@ -1,7 +1,7 @@
 import { useState,useEffect } from "react"
 import { supabase } from "../supabase"
 
-export default function TorneosAdmin({volver}){
+export default function TorneosAdmin(){
 
 const [torneos,setTorneos]=useState([])
 
@@ -85,18 +85,14 @@ return(
 
 <div className="space-y-4">
 
-<button
-onClick={volver}
-className="mb-6 bg-gray-600 text-white px-4 py-2 rounded"
->
-← Volver
-</button>
-
 <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 
+<div>
+<p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Crear, activar o editar torneos</p>
 <h2 className="text-2xl font-bold">
-Administrar Torneos
+Catalogo de torneos
 </h2>
+</div>
 
 <button
 onClick={crearTorneo}

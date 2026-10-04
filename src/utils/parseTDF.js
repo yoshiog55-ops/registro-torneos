@@ -5,10 +5,24 @@ export async function parseTDF(file){
   const parser = new DOMParser()
   const xml = parser.parseFromString(text, "text/xml")
 
+  const droppedPlayers = Array.from(xml.querySelectorAll("players > player")).flatMap(player => {
+    const dropped = player.querySelector(":scope > dropped")
+    if (!dropped) return []
+
+    const playerId = player.getAttribute("userid")
+    const droppedRound = Number(dropped.querySelector("round")?.textContent)
+
+    if (!playerId || !Number.isInteger(droppedRound) || droppedRound < 1) {
+      throw new Error("El TDF contiene un retiro sin Player ID o número de ronda válido.")
+    }
+
+    return [{ player_id: playerId, ronda: droppedRound }]
+  })
+
   // =========================
   // 🎮 ROUNDS
   // =========================
-  const roundsXML = xml.querySelectorAll("round")
+  const roundsXML = xml.querySelectorAll("rounds > round")
 
   const rounds = Array.from(roundsXML).map(r => {
 
@@ -16,7 +30,11 @@ export async function parseTDF(file){
 
     const matchesXML = r.querySelectorAll("match")
 
-    const matches = Array.from(matchesXML).map(m => {
+    // outcome 8 = jugador que entró tarde (aún no emparejado en esa ronda), no es un match ni un BYE
+    const matchesReales = Array.from(matchesXML)
+      .filter(m => Number(m.getAttribute("outcome") || 0) !== 8)
+
+    const matches = matchesReales.map(m => {
 
 const outcome = Number(m.getAttribute("outcome") || 0)
 
@@ -194,6 +212,7 @@ return {
 
   return {
     rounds,
-    standings
+    standings,
+    droppedPlayers
   }
 }

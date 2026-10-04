@@ -1,8 +1,10 @@
 import { useState,useEffect, useRef } from "react"
+import { useParams, useNavigate } from "react-router-dom"
 import { supabase } from "../supabase"
 import ConsultaJugadores from "../components/ConsultaJugadores"
 import TorneosAdmin from "../components/TorneosAdmin"
 import EventosHistorial from "../components/EventosHistorial"
+import CanjesAdmin from "../components/CanjesAdmin"
 import AdminRondas from "./AdminRondas"
 import { formatDateTimeInMexico, getMexicoDateInputValue } from "../utils/date"
 import { obtenerEventos, crearEvento } from "../utils/evento"
@@ -18,7 +20,9 @@ const [mensaje,setMensaje] = useState("")
 const [jugadores,setJugadores]=useState([])
 const [jugadoresDB,setJugadoresDB]=useState([])
 
-const [vista,setVista]=useState("torneo")
+const { vista: vistaParam } = useParams()
+const navigate = useNavigate()
+const vista = vistaParam || "torneo"
 const [busqueda,setBusqueda]=useState("")
 const [estado,setEstado]=useState(null)
 const [torneos,setTorneos] = useState([])
@@ -37,12 +41,7 @@ const eventoSeleccionadoRef = useRef("")
 
 useEffect(()=>{
 
-  const savedVista = localStorage.getItem("admin_vista")
   const savedTorneo = localStorage.getItem("admin_torneo")
-
-  if(savedVista){
-    setVista(savedVista)
-  }
 
   if(savedTorneo){
     setTorneoSeleccionado(savedTorneo)
@@ -50,6 +49,10 @@ useEffect(()=>{
 
   verificarSesion()
   cargarTorneos()
+
+  const { data: authListener } = supabase.auth.onAuthStateChange((evento)=>{
+    if(evento === "SIGNED_OUT") setAuth(false)
+  })
 
   const channel = supabase
     .channel("inscripciones-realtime")
@@ -70,15 +73,22 @@ useEffect(()=>{
     .subscribe()
 
   return () => {
+    authListener.subscription.unsubscribe()
     supabase.removeChannel(channel)
   }
 
 },[])
 
 function cambiarVista(v){
-  setVista(v)
-  localStorage.setItem("admin_vista", v)
+  navigate(v === "torneo" ? "/admin" : `/admin/${v}`)
 }
+
+useEffect(()=>{
+  if(vista === "jugadores" && auth){
+    cargarJugadoresDB()
+    if(torneoSeleccionado === "ALL" && torneos.length > 0) setTorneoSeleccionado(torneos[0].id)
+  }
+},[vista, auth, torneos])
 
 async function cargarTorneos(){
 
@@ -126,17 +136,18 @@ if(!jugadorAEliminar) return
 
 const {error} = await supabase
 .from("inscripciones")
-.delete()
+.update({retirado:true})
 .eq("id", jugadorAEliminar.id)
 
 if(error){
-setMensaje("Error al quitar jugador")
+setMensaje("Error al registrar el retiro: " + error.message)
 return
 }
 
+setMensaje("Retiro registrado correctamente")
 setMostrarConfirmacion(false)
 setJugadorAEliminar(null)
-cargarJugadores()
+await cargarJugadores()
 
 }
 
@@ -163,13 +174,6 @@ setAuth(true)
 cargarJugadores()
 cargarEstado()
 }
-
-}
-
-async function logout(){
-
-await supabase.auth.signOut()
-setAuth(false)
 
 }
 
@@ -225,6 +229,7 @@ async function cargarJugadores(filtros = {}){
       late,
       copiado,
       checkin,
+      retirado,
       created_at,
       torneos (
         nombre
@@ -492,16 +497,18 @@ const vistas = [
     id: "rondas",
     titulo: "Rondas y TDF",
     descripcion: "Pareos, standings y carga de archivos"
+  },
+  {
+    id: "tickets",
+    titulo: "Historial de tickets",
+    descripcion: "Tickets ganados y gastados por jugador"
+  },
+  {
+    id: "canjes",
+    titulo: "Canje de tickets",
+    descripcion: "Premios y canjes de jugadores"
   }
 ]
-
-const vistaActual = vistas.find(item => item.id === vista) || vistas[0]
-const torneoActualNombre = torneoSeleccionado === "ALL"
-  ? "Todos los torneos"
-  : torneos.find(t => String(t.id) === String(torneoSeleccionado))?.nombre || "Sin torneo"
-const eventoActualNombre = eventoSeleccionado
-  ? eventos.find(ev => String(ev.id) === String(eventoSeleccionado))?.fecha || "Evento seleccionado"
-  : "Todos los eventos"
 
 if(!auth){
 
@@ -543,90 +550,19 @@ return(
 
 <div className="max-w-7xl mx-auto px-3 md:px-6">
 
+<div className="min-w-0">
+
 {mensaje && (
 <div className="mb-4 bg-green-100 text-green-700 p-3 rounded text-center">
 {mensaje}
 </div>
 )}
 
-<div className="mb-6 rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-50 via-white to-cyan-50 p-5 shadow-sm">
-
-<div className="flex flex-wrap justify-between items-start gap-4">
-
-<div>
-<p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-Panel admin
-</p>
-
-<h1 className="text-2xl md:text-3xl font-bold text-slate-900">
-{vistaActual.titulo}
-</h1>
-
-<p className="mt-1 text-sm text-slate-600">
-{vistaActual.descripcion}
-</p>
-
-</div>
-
-<button
-onClick={logout}
-className="rounded-lg bg-red-500 px-4 py-2 text-white shadow-sm"
->
-Cerrar sesión
-</button>
-
-</div>
-
-<div className="mt-4 flex flex-wrap gap-2 text-sm">
-<div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-700">
-Torneo: <span className="font-semibold">{torneoActualNombre}</span>
-</div>
-<div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-700">
-Evento: <span className="font-semibold">{eventoActualNombre}</span>
-</div>
-<div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-700">
-Registro: <span className={`font-semibold ${estado?.registro_abierto ? "text-green-700" : "text-red-700"}`}>
-{estado?.registro_abierto ? "Abierto" : "Cerrado"}
-</span>
-</div>
-</div>
-
-</div>
-
-<div className="mb-6 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-
-{vistas.map(item=>(
-
-<button
-key={item.id}
-onClick={()=>{
-  cambiarVista(item.id)
-  if(item.id === "jugadores"){
-    cargarJugadoresDB()
-    if(torneoSeleccionado === "ALL" && torneos.length > 0) setTorneoSeleccionado(torneos[0].id)
-  }
-}}
-className={`rounded-2xl border p-4 text-left transition ${
-  vista === item.id
-    ? "border-slate-900 bg-slate-900 text-white shadow-lg"
-    : "border-slate-200 bg-white text-slate-800 hover:border-slate-400 hover:shadow-sm"
-}`}
->
-<p className="text-sm font-semibold">{item.titulo}</p>
-<p className={`mt-1 text-xs ${vista === item.id ? "text-slate-200" : "text-slate-500"}`}>
-{item.descripcion}
-</p>
-</button>
-
-))}
-
-</div>
-
 {vista==="torneo" && (
 
 <div>
 
-<div className="mb-6 grid gap-4 xl:grid-cols-[1.4fr,1fr]">
+<div className="mb-6">
 
 <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
 <p className="mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
@@ -743,26 +679,6 @@ Recargar
 </div>
 </div>
 
-<div className="rounded-2xl border border-slate-200 bg-slate-900 p-5 text-white shadow-sm">
-<p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">
-Contexto actual
-</p>
-<div className="mt-3 space-y-3 text-sm">
-<div>
-<span className="text-slate-400">Vista</span>
-<p className="font-semibold">{vistaActual.titulo}</p>
-</div>
-<div>
-<span className="text-slate-400">Torneo</span>
-<p className="font-semibold">{torneoActualNombre}</p>
-</div>
-<div>
-<span className="text-slate-400">Evento</span>
-<p className="font-semibold">{eventoActualNombre}</p>
-</div>
-</div>
-</div>
-
 </div>
 
 <input
@@ -772,24 +688,29 @@ value={busqueda}
 onChange={(e)=>setBusqueda(e.target.value)}
 />
 
-<div className="grid grid-cols-1 gap-3 mb-6 md:grid-cols-3">
+<div className="grid grid-cols-1 gap-3 mb-6 md:grid-cols-4">
 
 <div className="bg-white p-4 rounded-xl shadow text-center">
 <h3 className="text-gray-500">Inscritos</h3>
-<p className="text-2xl font-bold">{jugadores.length}</p>
+<p className="text-2xl font-bold">{jugadores.filter(j=>!j.retirado).length}</p>
+</div>
+
+<div className="bg-white p-4 rounded-xl shadow text-center">
+<h3 className="text-gray-500">Retirados</h3>
+<p className="text-2xl font-bold text-red-600">{jugadores.filter(j=>j.retirado).length}</p>
 </div>
 
 <div className="bg-white p-4 rounded-xl shadow text-center">
 <h3 className="text-gray-500">Pagados</h3>
 <p className="text-2xl font-bold">
-{jugadores.filter(j=>j.pagado).length}
+{jugadores.filter(j=>!j.retirado && j.pagado).length}
 </p>
 </div>
 
 <div className="bg-white p-4 rounded-xl shadow text-center">
 <h3 className="text-gray-500">Pendientes</h3>
 <p className="text-2xl font-bold">
-{jugadores.filter(j=>!j.pagado).length}
+{jugadores.filter(j=>!j.retirado && !j.pagado).length}
 </p>
 </div>
 
@@ -821,6 +742,8 @@ Fecha inscripción
 
 <th className="p-3">Torneo</th>
 
+<th className="p-3">Participación</th>
+
 <th className="p-3">Pago</th>
 
 <th className="p-3">Check-in</th>
@@ -831,7 +754,7 @@ Fecha inscripción
 
 <th className="p-3">Inscrito</th>
 
-<th className="p-3">Quitar</th>
+<th className="p-3">Retirar</th>
 
 </tr>
 
@@ -841,7 +764,7 @@ Fecha inscripción
 
 {jugadoresOrdenados.map(j=>(
 
-<tr key={j.id} className={`border-t ${j.late ? "bg-yellow-100" : "odd:bg-gray-50"}`}>
+<tr key={j.id} className={`border-t ${j.retirado ? "bg-red-50" : j.late ? "bg-yellow-100" : "odd:bg-gray-50"}`}>
 
 <td className="p-3 text-center">{j.jugadores.player_id}</td>
 
@@ -858,11 +781,19 @@ Fecha inscripción
 </td>
 
 <td className="p-3 text-center">
+  {j.retirado
+    ? <span className="rounded bg-red-100 px-2 py-1 text-xs font-bold text-red-700">Retirado</span>
+    : <span className="rounded bg-green-100 px-2 py-1 text-xs font-bold text-green-700">Activo</span>
+  }
+</td>
+
+<td className="p-3 text-center">
 
 <button
 onClick={()=>togglePago(j)}
+disabled={j.retirado}
 className={`px-3 py-1 rounded text-white ${
-j.pagado ? "bg-green-600" : "bg-red-600"
+j.retirado ? "bg-gray-400 cursor-not-allowed" : j.pagado ? "bg-green-600" : "bg-red-600"
 }`}
 >
 
@@ -876,8 +807,9 @@ j.pagado ? "bg-green-600" : "bg-red-600"
 
 <button
 onClick={()=>toggleCheckin(j)}
+disabled={j.retirado}
 className={`px-3 py-1 rounded text-white ${
-  j.checkin ? "bg-green-600" : "bg-gray-400"
+  j.retirado ? "bg-gray-400 cursor-not-allowed" : j.checkin ? "bg-green-600" : "bg-gray-400"
 }`}
 >
 
@@ -899,6 +831,7 @@ className={`px-3 py-1 rounded text-white ${
 <td className="p-3 text-center">
 
 <button
+disabled={j.retirado}
 onClick={async ()=>{
 
 navigator.clipboard.writeText(j.jugadores.player_id)
@@ -914,7 +847,7 @@ setTimeout(()=>setMensaje(""),2000)
 cargarJugadores()
 
 }}
-className="bg-[#00B7C3] text-white px-3 py-1 rounded"
+className="bg-[#00B7C3] text-white px-3 py-1 rounded disabled:cursor-not-allowed disabled:bg-gray-400"
 >
 Copiar
 </button>
@@ -925,8 +858,9 @@ Copiar
 
 <button
 onClick={()=>toggleCopiado(j)}
+disabled={j.retirado}
 className={`px-3 py-1 rounded text-white ${
-j.copiado ? "bg-green-600" : "bg-gray-400"
+j.retirado ? "bg-gray-400 cursor-not-allowed" : j.copiado ? "bg-green-600" : "bg-gray-400"
 }`}
 >
 
@@ -939,13 +873,14 @@ j.copiado ? "bg-green-600" : "bg-gray-400"
 <td className="p-3 text-center">
 
 <button
+disabled={j.retirado}
 onClick={()=>{
   setJugadorAEliminar(j)
   setMostrarConfirmacion(true)
 }}
-className="bg-red-600 text-white px-3 py-1 rounded"
+className="bg-red-600 text-white px-3 py-1 rounded disabled:cursor-not-allowed disabled:bg-gray-400"
 >
-Quitar
+{j.retirado ? "Retirado" : "Retirar"}
 </button>
 
 </td>
@@ -967,7 +902,6 @@ Quitar
 {vista==="jugadores" && (
 
 <ConsultaJugadores
-  volver={()=>setVista("torneo")}
   torneoSeleccionado={torneoSeleccionado}
   eventoSeleccionado={eventoSeleccionado}
 />
@@ -976,7 +910,7 @@ Quitar
 
 {vista==="torneos" && (
 
-<TorneosAdmin volver={()=>setVista("torneo")} />
+<TorneosAdmin />
 
 )}
 
@@ -992,13 +926,19 @@ Quitar
 
 )}
 
+{vista==="tickets" && (
+
+<CanjesAdmin />
+
+)}
+
 {mostrarConfirmacion && jugadorAEliminar && (
   <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
 
     <div className="bg-white p-6 rounded-xl shadow-xl max-w-sm w-full text-center">
 
       <p className="mb-4 font-bold">
-        ¿Quitar a {jugadorAEliminar.jugadores.nombre} del torneo?
+        ¿Registrar el retiro de {jugadorAEliminar.jugadores.nombre} del torneo? El historial de sus rondas se conservará.
       </p>
 
       <div className="flex gap-3 justify-center">
@@ -1017,7 +957,7 @@ Quitar
           onClick={quitarInscripcion}
           className="bg-red-600 text-white px-4 py-2 rounded"
         >
-          Confirmar
+          Retirar del evento
         </button>
 
       </div>
@@ -1029,7 +969,8 @@ Quitar
 
 </div>
 
+</div>
+
 )
 
 }
-

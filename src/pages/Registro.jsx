@@ -102,7 +102,8 @@ telefono
 
 if(error){
 
-setMensaje("Error registrando jugador")
+console.error("Error registrando jugador", error)
+setMensaje("Error registrando jugador: " + (error.message || "desconocido"))
 return
 
 }
@@ -134,7 +135,7 @@ setTelefono("")
 return
 }
 
-const late = !estado.registro_abierto
+const late = !(estado?.registro_abierto ?? true)
 const fechaHoy = getMexicoDateInputValue()
 
 const { data:existeInscripcion } = await supabase
@@ -286,7 +287,7 @@ Registrar jugador
 
 {mensaje && (
 
-<div className="mt-4 bg-green-100 text-green-700 p-4 rounded text-center">
+<div className={`mt-4 p-4 rounded text-center ${/^(Error|Jugador ya registrado|Player ID|Tel|El |Selecciona|No se|Jugador registrado pero)/.test(mensaje) ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"}`}>
 
 <p className="font-bold">{mensaje}</p>
 

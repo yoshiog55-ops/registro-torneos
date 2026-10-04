@@ -1,6 +1,6 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom"
+﻿import { BrowserRouter, Routes, Route } from "react-router-dom"
 
-import Navbar from "./components/Navbar"
+import Sidebar from "./components/Sidebar"
 import ToastHost from "./components/ToastHost"
 
 import Home from "./pages/Home"
@@ -14,10 +14,10 @@ return(
 
 <BrowserRouter>
 
-<Navbar/>
+<Sidebar/>
 <ToastHost/>
 
-<div className="min-h-screen bg-gray-100 px-3 py-4 sm:px-4 md:px-6 lg:px-8">
+<div className="min-h-screen bg-gray-100 md:ml-60 px-3 py-4 pb-24 sm:px-4 md:px-6 lg:px-8">
 
 <Routes>
 
@@ -25,7 +25,7 @@ return(
 
 <Route path="/registro" element={<Registro />} />
 
-<Route path="/admin" element={<Admin />} />
+<Route path="/admin/:vista?" element={<Admin />} />
 
 <Route path="/pareos" element={<Pareos />} />
 
@@ -40,3 +40,5 @@ return(
 }
 
 export default App
+
+

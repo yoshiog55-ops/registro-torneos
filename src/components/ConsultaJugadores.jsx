@@ -3,7 +3,7 @@ import { supabase } from "../supabase"
 import { getMexicoDateInputValue } from "../utils/date"
 import { obtenerEventoActual } from "../utils/evento"
 
-export default function ConsultaJugadores({ volver, torneoSeleccionado, eventoSeleccionado }){
+export default function ConsultaJugadores({ torneoSeleccionado, eventoSeleccionado }){
     
 const [jugadores,setJugadores]=useState([])
 const [busqueda,setBusqueda]=useState("")
@@ -195,19 +195,11 @@ await cargarJugadores()
 return(
 
 <div>
-<div className="flex justify-between items-center mb-4">
-
-<button
-onClick={volver}
-className="bg-gray-600 text-white px-4 py-2 rounded"
->
-Volver
-</button>
-
+<div className="mb-4">
+<p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Buscar, editar e inscribir jugadores</p>
 <h2 className="text-xl font-bold">
-Consulta de jugadores
+Base de jugadores
 </h2>
-
 </div>
 
 <input
