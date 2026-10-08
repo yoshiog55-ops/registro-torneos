@@ -71,7 +71,16 @@ return(
 {movimientos.map(m=>(
 <div key={m.id} className="flex items-center justify-between py-2">
 <div>
-<p>{m.motivo}{m.descripcion ? ` · ${m.descripcion}` : ""}</p>
+<div className="flex flex-wrap items-center gap-2">
+<span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${m.cantidad < 0 ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"}`}>
+{m.cantidad < 0 ? "Gastaste" : "Ganaste"}
+</span>
+<p className="font-medium">
+{m.cantidad < 0
+  ? `${m.motivo === "canje" ? "Canje" : m.motivo}${m.descripcion ? `: ${m.descripcion}` : ""}`
+  : `${m.motivo}${m.descripcion ? ` · ${m.descripcion}` : ""}`}
+</p>
+</div>
 <p className="text-xs text-gray-400">{formatDateTimeInMexico(m.created_at)}</p>
 </div>
 <p className={`font-bold ${m.cantidad >= 0 ? "text-green-600" : "text-red-600"}`}>

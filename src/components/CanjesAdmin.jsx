@@ -112,6 +112,12 @@ export default function CanjesAdmin() {
     })
 
     if (error) {
+      if (error.message.toLowerCase().includes("premio no encontrado")) {
+        await cargarPremios()
+        showToast("El premio pudo haber cambiado. Actualicé la lista; intenta realizar el canje de nuevo.", "error")
+        return
+      }
+
       showToast("No se pudo realizar el canje: " + error.message, "error")
       return
     }
